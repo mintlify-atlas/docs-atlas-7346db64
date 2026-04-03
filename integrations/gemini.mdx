@@ -1,0 +1,82 @@
+---
+title: "Gemini"
+description: "Generate text with Google Gemini models inside your AutoPilot workflows."
+---
+
+The Gemini node calls the Google Generative AI API to generate text from a prompt and stores the response in the workflow context. You can reference that response by variable name in any downstream node. Both the system prompt and user prompt support Handlebars template syntax, so you can inject data produced by earlier steps directly into your prompts.
+
+## Prerequisites
+
+You need a **Gemini** credential saved to your account before you can configure this node. The credential stores your Google AI API key.
+
+<Steps>
+  <Step title="Get your API key">
+    Go to [aistudio.google.com](https://aistudio.google.com), click **Get API key**, and create a new key for your project.
+  </Step>
+  <Step title="Save it in AutoPilot">
+    Navigate to **Dashboard → Credentials**, click **New Credential**, choose type **Gemini**, and paste your key. See [Supported credential types](/credentials/supported-types) for details.
+  </Step>
+  <Step title="Select it in the node">
+    Open the Gemini node settings and pick the credential from the **API Key** picker.
+  </Step>
+</Steps>
+
+## Configuration
+
+<ParamField body="credentialId" type="string" required>
+  The saved Gemini credential whose API key is used to authenticate requests. Select from credentials of type **Gemini**.
+</ParamField>
+
+<ParamField body="model" type="string" required default="gemini-2.5-flash">
+  The Gemini model to use for text generation. Defaults to `gemini-2.5-flash`. The dropdown lists all Google AI models available through your API key.
+</ParamField>
+
+<ParamField body="variableName" type="string" required>
+  The key under which the node's output is stored in the workflow context. Must start with a letter, underscore, or `$`, and contain only alphanumeric characters, underscores, or `$`. Access the response in later nodes as `{{variableName.aiResponse}}`.
+</ParamField>
+
+<ParamField body="systemPrompt" type="string">
+  Optional instructions that set the model's role and behavior. If omitted, the system prompt defaults to `"You are a helpful assistant."` Supports `{{variable}}` and `{{json variable}}` Handlebars syntax for interpolating context values.
+</ParamField>
+
+<ParamField body="userPrompt" type="string" required>
+  The main input sent to the model. Supports `{{variableName.field}}` Handlebars syntax to reference output from previous nodes. Example: `Summarize the following text: {{previousStep.data}}`.
+</ParamField>
+
+<Note>
+  Both `systemPrompt` and `userPrompt` are compiled through Handlebars before the API call, so any `{{variable}}` references are resolved against the current workflow context at execution time.
+</Note>
+
+## Output
+
+On success, the node merges the following object into the workflow context under the key you specified in **Variable Name**:
+
+```json
+{
+  "aiResponse": "The model's generated text response."
+}
+```
+
+Reference the response in downstream nodes with `{{variableName.aiResponse}}`.
+
+<Warning>
+  If the API call fails, the node throws a non-retriable error and halts workflow execution. Check that your API key is valid, the selected model is available in your region, and your Google AI project has the Generative Language API enabled.
+</Warning>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Multimodal content generation" icon="image">
+    Use Gemini's multimodal capabilities to generate descriptions or analysis of images or documents passed through the workflow context.
+  </Card>
+  <Card title="Rapid prototyping with Flash" icon="bolt">
+    Use `gemini-2.5-flash` for high-throughput workflows where speed matters — for example, processing many form submissions in quick succession.
+  </Card>
+  <Card title="Translation and localization" icon="language">
+    Pass text content from a previous node and prompt Gemini to translate it into one or more target languages before sending the output via a notification node.
+  </Card>
+</CardGroup>
+
+---
+
+See [Supported credential types](/credentials/supported-types) for instructions on creating and managing Gemini credentials.

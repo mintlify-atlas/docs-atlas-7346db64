@@ -1,0 +1,116 @@
+---
+title: "Google Form Trigger"
+description: "Start workflows when a Google Form is submitted"
+---
+
+The Google Form Trigger starts a workflow every time a respondent submits a Google Form. AutoPilot receives the submission via a webhook and passes the structured form data — including all question responses, the respondent's email, and submission metadata — into the workflow context for downstream nodes to use.
+
+## How it works
+
+AutoPilot exposes a webhook endpoint at `/api/webhooks/google-form`. When a form is submitted, a Google Apps Script attached to your form POSTs the submission data to this endpoint. AutoPilot validates the request, extracts the form fields, and triggers an Inngest workflow execution with the parsed data.
+
+The workflow receives the data under the `googleFormData` key in the context object.
+
+## Setting up the trigger
+
+<Steps>
+  <Step title="Add the Google Form Trigger node">
+    On the workflow canvas, click the **+** placeholder node to open the node selector. Choose **Google Form** from the Triggers section.
+  </Step>
+  <Step title="Open the configuration dialog">
+    Double-click the node or click the settings icon to open the Google Form Trigger Configuration dialog.
+  </Step>
+  <Step title="Copy the webhook URL">
+    AutoPilot generates a unique webhook URL for this workflow:
+
+    ```
+    https://your-app.com/api/webhooks/google-form?workflowId=<your-workflow-id>
+    ```
+
+    Click the copy icon next to the URL field to copy it to your clipboard.
+  </Step>
+  <Step title="Open your Google Form">
+    Go to [Google Forms](https://forms.google.com) and open the form you want to connect. Click the three-dot menu (⋮) and select **Script editor**.
+  </Step>
+  <Step title="Paste the Apps Script">
+    In the Script editor, delete any existing code. Back in AutoPilot, click **Copy Script** to copy the pre-generated Apps Script, then paste it into the editor and save.
+
+    The script collects form responses and POSTs them to your webhook URL automatically. No modifications are needed.
+  </Step>
+  <Step title="Add an on-submit trigger">
+    In the Apps Script editor, click **Triggers** (clock icon) → **Add Trigger**. Set:
+    - **Function to run**: `onFormSubmit`
+    - **Event source**: From form
+    - **Event type**: On form submit
+
+    Save the trigger. Google will ask for authorization — grant it.
+  </Step>
+  <Step title="Test the integration">
+    Submit a test response in your Google Form. The Google Form Trigger node on the canvas should update its status to **success** and the workflow will execute.
+  </Step>
+</Steps>
+
+## Webhook endpoint
+
+The webhook listens for `POST` requests at:
+
+```
+POST /api/webhooks/google-form?workflowId=<workflowId>
+```
+
+The `workflowId` query parameter is required. Requests without it return a `400` error.
+
+You can verify the endpoint is active by sending a `GET` request to the same URL — it returns a JSON confirmation that the endpoint is live.
+
+## Payload structure
+
+The Apps Script sends the following JSON payload on each form submission:
+
+```json
+{
+  "formId": "1FAIpQLSd...",
+  "formTitle": "Customer Feedback",
+  "responseId": "ACYDBNj...",
+  "timestamp": "2026-04-03T10:30:00.000Z",
+  "respondentEmail": "user@example.com",
+  "responses": {
+    "What is your name?": "Jane Doe",
+    "How did you hear about us?": "Social media"
+  }
+}
+```
+
+## Workflow context variables
+
+After the trigger fires, downstream nodes can reference form data using these variables:
+
+| Variable | Description |
+|---|---|
+| `{{googleFormData.respondentEmail}}` | Email address of the respondent |
+| `{{googleFormData.formId}}` | Google Form ID |
+| `{{googleFormData.formTitle}}` | Title of the form |
+| `{{googleFormData.responseId}}` | Unique ID of this response |
+| `{{googleFormData.timestamp}}` | Submission timestamp |
+| `{{googleFormData.responses['Question text']}}` | Answer to a specific question |
+| `{{json googleFormData.responses}}` | All responses serialized as JSON |
+
+<Tip>
+  Question text in `responses` is case-sensitive and must match exactly the question label in your Google Form. If a question reads "Full Name", use `{{googleFormData.responses['Full Name']}}`.
+</Tip>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Lead capture" icon="user-plus">
+    Collect contact form submissions and automatically send them to a CRM, email list, or Slack channel.
+  </Card>
+  <Card title="Event registration" icon="calendar">
+    Trigger confirmation emails and internal notifications when someone registers for an event via a form.
+  </Card>
+  <Card title="Survey processing" icon="chart-bar">
+    Feed survey responses into an AI node to summarize, classify sentiment, or generate follow-up actions.
+  </Card>
+  <Card title="Support intake" icon="headset">
+    Route support requests submitted via Google Forms to the right team using conditional action nodes.
+  </Card>
+</CardGroup>

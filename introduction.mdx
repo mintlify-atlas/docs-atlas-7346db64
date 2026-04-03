@@ -1,0 +1,53 @@
+---
+title: "Introduction"
+description: "Learn what AutoPilot is and how it works"
+---
+
+AutoPilot is a visual workflow automation platform. You build automations by connecting nodes on a drag-and-drop canvas — no code required. Each workflow runs its nodes in the correct order, passing data between them automatically.
+
+## Key capabilities
+
+<CardGroup cols={3}>
+  <Card title="Triggers" icon="bolt">
+    Start workflows from a manual click, an HTTP request, a Google Form submission, or a Stripe payment event.
+  </Card>
+  <Card title="AI models" icon="brain">
+    Process and transform data using OpenAI, Anthropic Claude, or Google Gemini — chain multiple models in a single workflow.
+  </Card>
+  <Card title="Notifications" icon="bell">
+    Send results to Discord, Slack, Telegram, or any email address via SMTP when a workflow completes.
+  </Card>
+</CardGroup>
+
+## How it works
+
+Workflows are made of **nodes** placed on a visual canvas. You connect nodes together to define the order of execution. When a workflow runs, AutoPilot executes each node in topological order — the output of one node becomes available as input to the next.
+
+There are three categories of node:
+
+| Category | What it does |
+|---|---|
+| **Triggers** | Starts the workflow and provides initial data |
+| **AI models** | Processes the context using a language model |
+| **Notifications** | Sends data to an external service |
+
+A workflow must have at least one trigger node. Trigger nodes include **Manual**, **HTTP Request**, **Google Form**, and **Stripe**. The **Execute Workflow** button appears on the canvas only when a Manual Trigger node is present.
+
+Credentials (API keys, webhook URLs, bot tokens) are stored securely in your account and attached to individual nodes. They are never exposed on the canvas.
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Create and run your first workflow in 5 minutes.
+  </Card>
+  <Card title="Core concepts" icon="lightbulb" href="/concepts/workflows">
+    Understand workflows, nodes, connections, and executions.
+  </Card>
+  <Card title="Triggers" icon="bolt" href="/triggers/manual">
+    Learn how to start workflows from HTTP requests, Google Forms, Stripe, and more.
+  </Card>
+  <Card title="Integrations" icon="puzzle-piece" href="/integrations/openai">
+    Connect OpenAI, Anthropic, Gemini, Discord, Slack, Telegram, and email.
+  </Card>
+</CardGroup>

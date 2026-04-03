@@ -1,0 +1,56 @@
+---
+title: "Manual Trigger"
+description: "Start a workflow on demand with a single click"
+---
+
+The Manual Trigger node starts a workflow immediately when you click **Execute workflow** in the AutoPilot canvas. It requires no external service, webhook, or schedule — you initiate the run directly from the editor.
+
+## How it works
+
+When you click **Execute workflow**, AutoPilot dispatches a workflow execution event. The Manual Trigger node is the first to run: it passes the current workflow context downstream to all connected nodes.
+
+The node publishes real-time status updates (`loading` → `success` or `error`) that you can observe directly on the canvas while the workflow runs.
+
+## Adding the node
+
+<Steps>
+  <Step title="Open the node selector">
+    On the workflow canvas, click the **+** placeholder node (the `initial_node`) to open the node selector.
+  </Step>
+  <Step title="Choose Manual Trigger">
+    Select **Manual Trigger** from the Triggers section. The node appears on the canvas labeled "When Clicking 'Execute workflow'".
+  </Step>
+  <Step title="Connect downstream nodes">
+    Draw edges from the Manual Trigger node's output handle to any action nodes you want to run.
+  </Step>
+  <Step title="Run the workflow">
+    Click **Execute workflow** in the editor toolbar. The Manual Trigger node activates and passes control to the next node in the chain.
+  </Step>
+</Steps>
+
+<Note>
+  The Manual Trigger must be the first node in the workflow. It has no input handle — only a single output handle on the right side that connects to downstream action nodes.
+</Note>
+
+## Configuration
+
+No configuration is required. The Manual Trigger node has no settings panel fields. Opening the node's settings dialog simply confirms that this trigger starts the workflow manually and can be used for testing.
+
+## The INITIAL node
+
+Every new workflow starts with an `INITIAL` node — a placeholder that lets you pick which trigger to place first. Once you select **Manual Trigger** from the node selector, the `INITIAL` node is replaced by the Manual Trigger node. You do not need to manage this replacement manually.
+
+## Workflow context
+
+The Manual Trigger passes the existing workflow context object to downstream nodes unchanged. Because it is triggered directly (not by an external event), the initial context contains no pre-populated trigger data. Downstream nodes receive an empty context unless you use action nodes to populate it.
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Testing workflows" icon="flask-conical">
+    Run a workflow end-to-end on demand to verify that each node behaves correctly before connecting a real trigger.
+  </Card>
+  <Card title="On-demand tasks" icon="mouse-pointer-click">
+    Execute one-off automations — such as a data export or a batch notification — whenever you need them, without waiting for a scheduled event.
+  </Card>
+</CardGroup>

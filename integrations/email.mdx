@@ -1,0 +1,116 @@
+---
+title: "Email"
+description: "Send emails via SMTP inside your AutoPilot workflows."
+---
+
+The Email node sends an email through an SMTP server using Nodemailer. It supports a selection of preconfigured email services (Gmail, Outlook 365, Yahoo, SendGrid, Zoho) as well as a custom SMTP option for any other provider. The recipient address, subject, and body all support Handlebars template syntax so you can embed dynamic data from earlier nodes. On success, the node stores the message ID and delivery metadata in the workflow context.
+
+## Prerequisites
+
+You need an **Email SMTP** credential saved to your account before you can configure this node. The credential stores your SMTP password or app password.
+
+<Steps>
+  <Step title="Get your SMTP password or app password">
+    - **Gmail**: Enable two-factor authentication on your Google account, then go to **myaccount.google.com → Security → App Passwords** and generate an app password for "Mail".
+    - **Outlook 365 / Yahoo / Zoho**: Use your account password or generate an app-specific password through your provider's security settings.
+    - **SendGrid**: Create an API key in the SendGrid dashboard with **Mail Send** permissions.
+    - **Custom SMTP**: Use the password for the SMTP account on your server.
+  </Step>
+  <Step title="Save it in AutoPilot">
+    Navigate to **Dashboard → Credentials**, click **New Credential**, choose type **Email SMTP**, and paste the password or app password. See [Supported credential types](/credentials/supported-types) for details.
+  </Step>
+  <Step title="Select it in the node">
+    Open the Email node settings and pick the credential from the **SMTP Password / App Password** picker.
+  </Step>
+</Steps>
+
+## Configuration
+
+<ParamField body="credentialId" type="string" required>
+  The saved Email SMTP credential containing the SMTP password or app password. Select from credentials of type **Email SMTP**. This value is used as the `auth.pass` field when creating the Nodemailer transport.
+</ParamField>
+
+<ParamField body="variableName" type="string" required>
+  The key under which the node's result is stored in the workflow context. Must start with a letter, underscore, or `$`, and contain only alphanumeric characters, underscores, or `$`. Access the result in later nodes as `{{variableName.success}}` and `{{variableName.messageId}}`.
+</ParamField>
+
+<ParamField body="smtpService" type="string" required default="gmail">
+  The email service to use. Selecting a named service configures the SMTP host and port automatically. Options: `gmail`, `Outlook365`, `Yahoo`, `SendGrid`, `Zoho`, or `custom`. When `custom` is selected, the **Host**, **Port**, and **TLS/SSL** fields become active.
+</ParamField>
+
+<ParamField body="smtpHost" type="string">
+  SMTP server hostname. Only required when **SMTP Service** is set to `custom`. Example: `smtp.example.com`. Defaults to `smtp.gmail.com` when not set.
+</ParamField>
+
+<ParamField body="smtpPort" type="string">
+  SMTP server port number. Only used when **SMTP Service** is set to `custom`. Defaults to `587` when not set. Common values: `587` (STARTTLS), `465` (SSL/TLS), `25` (unencrypted, not recommended).
+</ParamField>
+
+<ParamField body="smtpSecure" type="boolean" default="false">
+  Enable TLS/SSL for the SMTP connection. Only used when **SMTP Service** is set to `custom`. Automatically set to `true` when the port is `465`.
+</ParamField>
+
+<ParamField body="fromEmail" type="string" required>
+  The sender email address. Must be valid for the SMTP account associated with the credential. Example: `you@gmail.com`.
+</ParamField>
+
+<ParamField body="toEmail" type="string" required>
+  The recipient email address. Accepts a comma-separated list for multiple recipients. Supports `{{variable}}` Handlebars syntax to set the recipient dynamically from prior nodes.
+</ParamField>
+
+<ParamField body="subject" type="string" required>
+  The email subject line. Supports `{{variable}}` Handlebars syntax. Example: `Report for {{date}}`.
+</ParamField>
+
+<ParamField body="body" type="string" required>
+  The email body content. Supports `{{variable}}` and `{{json variable}}` Handlebars syntax to embed dynamic data from prior nodes. Sent as plain text unless **HTML Format** is enabled.
+</ParamField>
+
+<ParamField body="isHtml" type="boolean" default="false">
+  When enabled, the body is sent as HTML content (`text/html`) instead of plain text (`text/plain`). Use this when you want to include HTML markup such as headings, links, or tables in the email.
+</ParamField>
+
+<Note>
+  Gmail free accounts are limited to 500 emails per day. Google Workspace accounts allow up to 2,000 emails per day. For high-volume sending, use SendGrid or a dedicated transactional email service.
+</Note>
+
+## Output
+
+On success, the node merges the following object into the workflow context under the key you specified in **Variable Name**:
+
+```json
+{
+  "success": true,
+  "messageId": "<unique-message-id@smtp.example.com>",
+  "to": "recipient@example.com",
+  "subject": "Your resolved subject line",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "provider": "email"
+}
+```
+
+The `messageId` is the SMTP message ID returned by Nodemailer after a successful send. The `to` and `subject` fields reflect the values after Handlebars template rendering.
+
+Reference delivery status with `{{variableName.success}}`, the message ID with `{{variableName.messageId}}`, and the resolved subject with `{{variableName.subject}}`.
+
+<Warning>
+  If the SMTP server rejects the credentials or the connection fails, the node throws a non-retriable error and halts workflow execution. Verify that the correct credential is selected and that the **From Email** matches the authenticated SMTP account.
+</Warning>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Automated report delivery" icon="file-chart-column">
+    Schedule a workflow that fetches data, passes it through an AI node to generate a formatted summary, and sends it as an HTML email to a distribution list.
+  </Card>
+  <Card title="Dynamic recipient from form data" icon="user">
+    Receive a Google Form submission trigger with an email address field, set **To Email** to `{{formResponse.emailField}}`, and send a confirmation email to the submitter automatically.
+  </Card>
+  <Card title="Stripe payment receipts" icon="receipt">
+    Trigger on a Stripe payment event and send a transactional receipt email with the amount, product name, and timestamp interpolated into the body using Handlebars templates.
+  </Card>
+</CardGroup>
+
+---
+
+See [Supported credential types](/credentials/supported-types) for instructions on creating and managing Email SMTP credentials.

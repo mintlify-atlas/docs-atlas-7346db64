@@ -1,80 +1,83 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Create and run your first workflow in 5 minutes"
 ---
 
-## Get started in three steps
+This guide walks you through building a working workflow — a Manual Trigger connected to an OpenAI node — so you can see AutoPilot in action as quickly as possible.
 
-Get your documentation site running locally and make your first customization.
+<Note>
+  Creating workflows requires an active Pro subscription. If you are on the free tier, you will be prompted to upgrade when you click **New Workflow**. AI and notification nodes also require saved credentials — complete step 2 before adding them.
+</Note>
 
-### Step 1: Set up your local environment
+<Steps>
+  <Step title="Sign up or log in">
+    Go to AutoPilot and create an account using your email address and a password. After signing up you are automatically signed in and redirected to the **Workflows** page.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    If you already have an account, click **Log in** and enter your credentials.
+  </Step>
 
-### Step 2: Deploy your changes
+  <Step title="Add a credential">
+    Before you can use an AI or notification node, you need to save the API key or token for that service.
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    1. In the sidebar, click **Credentials**.
+    2. Click **New Credential**.
+    3. Give the credential a name (for example, `My OpenAI Key`).
+    4. Select the **Type** — choose **OpenAI** for this walkthrough.
+    5. Paste your OpenAI API key (starts with `sk-`) into the **API Key** field.
+    6. Click **Create Credential**.
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    The credential is now saved to your account and will appear in the node configuration panel when you add an OpenAI node.
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    <Tip>
+      You can add credentials for any supported service at any time — Anthropic, Gemini, Discord Webhook, Slack Webhook, Telegram Bot, and Email (SMTP) are all available.
+    </Tip>
+  </Step>
 
-### Step 3: Go live
+  <Step title="Create a new workflow">
+    1. In the sidebar, click **Workflows**.
+    2. Click **New Workflow**. AutoPilot creates an empty workflow and opens the visual canvas editor.
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    The canvas shows a minimap in the lower right, zoom controls on the left, and an **Add node** button ( **+** ) in the upper right.
+  </Step>
+
+  <Step title="Add a Manual Trigger node">
+    1. Click the **+** button in the upper right of the canvas.
+    2. In the node selector, choose **Manual Trigger**.
+    3. The node appears on the canvas. Drag it to position it on the left side.
+
+    A Manual Trigger node starts the workflow when you click **Execute Workflow**. It does not require a credential. Once this node is on the canvas, the **Execute Workflow** button becomes visible at the bottom of the editor.
+  </Step>
+
+  <Step title="Add an OpenAI node and connect it">
+    1. Click **+** again and choose **OpenAI**.
+    2. The OpenAI node appears on the canvas.
+    3. In the node's configuration panel, select the credential you saved in step 2 from the **Credential** dropdown.
+    4. Enter the prompt you want to send to the model.
+    5. Draw a connection from the **Manual Trigger** node's output handle to the **OpenAI** node's input handle by clicking and dragging between the two handles.
+
+    The connection tells AutoPilot to run the OpenAI node after the trigger fires, passing any context data along.
+  </Step>
+
+  <Step title="Execute the workflow and view results">
+    1. Click **Execute Workflow** at the bottom of the canvas.
+    2. AutoPilot sends the workflow to the background job runner and executes each node in order.
+    3. Results stream back in real time — each node on the canvas updates its status indicator as it completes (loading → success or error).
+  </Step>
+</Steps>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Core concepts" icon="lightbulb" href="/concepts/workflows">
+    Learn how workflows, nodes, connections, and executions fit together.
+  </Card>
+  <Card title="Triggers" icon="bolt" href="/triggers/manual">
+    Start workflows from HTTP requests, Google Forms, or Stripe events.
+  </Card>
+  <Card title="AI models" icon="brain" href="/actions/ai-models">
+    Configure OpenAI, Anthropic, and Gemini nodes in detail.
+  </Card>
+  <Card title="Credentials & security" icon="key" href="/credentials/overview">
+    Manage API keys and understand how credentials are stored.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

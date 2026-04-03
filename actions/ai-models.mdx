@@ -1,0 +1,160 @@
+---
+title: "AI Model Actions"
+description: "Use OpenAI, Anthropic, and Gemini in your workflows"
+---
+
+AI model action nodes let you call a large language model at any point in a workflow. Each node sends a prompt, waits for the response, and stores the generated text in the workflow context so downstream nodes can use it.
+
+AutoPilot supports three AI providers as action nodes:
+
+<CardGroup cols={3}>
+  <Card title="OpenAI" icon="robot">
+    GPT-powered text generation. Default model: `gpt-4.1-mini`.
+  </Card>
+  <Card title="Anthropic" icon="brain">
+    Claude AI text generation. Default model: `claude-sonnet-4-6`.
+  </Card>
+  <Card title="Gemini" icon="sparkles">
+    Google Gemini text generation. Default model: `gemini-2.5-flash`.
+  </Card>
+</CardGroup>
+
+<Note>
+  Each AI node requires a saved credential for the corresponding provider. Go to **Credentials** and add your API key before configuring an AI node. The key is stored securely and scoped to your account — it is never exposed on the canvas.
+</Note>
+
+---
+
+## Configuration fields
+
+All three AI nodes share the same set of configuration fields.
+
+<ParamField path="credentialId" type="string" required>
+  The saved API key credential to use for this node. Select an existing credential or add a new one from the credential picker. Required credential types: `OPENAI`, `ANTHROPIC`, or `GEMINI` depending on the node.
+</ParamField>
+
+<ParamField path="model" type="string" required>
+  The model to use for text generation. Each provider loads its available models dynamically.
+
+  | Provider | Default model |
+  |---|---|
+  | OpenAI | `gpt-4.1-mini` |
+  | Anthropic | `claude-sonnet-4-6` |
+  | Gemini | `gemini-2.5-flash` |
+</ParamField>
+
+<ParamField path="variableName" type="string" required>
+  The name used to store this node's output in the workflow context. Must start with a letter, underscore, or dollar sign and contain only alphanumeric characters, underscores, or dollar signs — for example, `summaryResult` or `classificationOutput`.
+
+  Once saved, the AI response is available as `{{variableName.aiResponse}}` in all subsequent nodes.
+</ParamField>
+
+<ParamField path="systemPrompt" type="string">
+  Optional. Sets the behavior or persona of the AI. Defaults to `"You are a helpful assistant."` if left blank. Supports Handlebars templating — you can reference context variables using `{{variableName}}` or serialize objects with `{{json variableName}}`.
+</ParamField>
+
+<ParamField path="userPrompt" type="string" required>
+  The main instruction sent to the model. Supports Handlebars templating, so you can embed data from previous nodes directly into the prompt. For example: `Summarize the following text: {{formData.responses.message}}`.
+</ParamField>
+
+---
+
+## Using context data in prompts
+
+Both the system prompt and the user prompt are compiled with [Handlebars](https://handlebarsjs.com/) before being sent to the model. This means you can reference any variable currently in the workflow context.
+
+**Reference a field from a previous node:**
+
+```
+{{previousNodeVariable.someField}}
+```
+
+**Serialize a complex object as JSON:**
+
+```
+{{json previousNodeVariable}}
+```
+
+**Example — summarizing a form submission:**
+
+```
+User prompt: Summarize the following customer feedback in one sentence:
+{{formResponse.responses.feedback}}
+```
+
+**Example — classifying a Stripe payment:**
+
+```
+User prompt: The following payment was received. Classify it as "high-value" (over $500) or "standard":
+{{stripeEvent.data.amount}}
+```
+
+---
+
+## Output
+
+When the node completes successfully, the AI response text is written to the workflow context under the variable name you configured:
+
+```json
+{
+  "variableName": {
+    "aiResponse": "The generated text from the model."
+  }
+}
+```
+
+Reference the response in downstream nodes — for example in a Slack message body or another AI prompt — using:
+
+```
+{{variableName.aiResponse}}
+```
+
+---
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Text summarization" icon="align-left">
+    Summarize long form responses, documents, or API payloads before sending them as a notification.
+  </Card>
+  <Card title="Content classification" icon="tags">
+    Classify incoming data — support tickets, payments, form responses — and route the workflow accordingly.
+  </Card>
+  <Card title="Question answering" icon="circle-question">
+    Answer questions based on structured data passed in through the context, such as product specs or customer records.
+  </Card>
+  <Card title="Text generation" icon="pen">
+    Generate email drafts, Slack messages, or report text automatically as part of a larger workflow.
+  </Card>
+</CardGroup>
+
+---
+
+## Configuring an AI node
+
+<Steps>
+  <Step title="Add the node to your canvas">
+    Open your workflow, then drag an **OpenAI**, **Anthropic**, or **Gemini** node from the node panel onto the canvas.
+  </Step>
+  <Step title="Connect it to the workflow">
+    Draw a connection from a trigger or a previous action node into the AI node's input handle.
+  </Step>
+  <Step title="Open node settings">
+    Click the node to open its configuration dialog.
+  </Step>
+  <Step title="Select a credential">
+    Choose an existing API key credential from the dropdown, or click **Add credential** to save a new one.
+  </Step>
+  <Step title="Choose a model">
+    Select the model from the dropdown. Available models are loaded dynamically from the provider.
+  </Step>
+  <Step title="Set a variable name">
+    Enter a unique variable name. You will use this name to access the AI response in later nodes: `{{yourVariableName.aiResponse}}`.
+  </Step>
+  <Step title="Write your prompts">
+    Write the system prompt (optional) and user prompt. Use `{{variableName.field}}` to embed data from previous nodes.
+  </Step>
+  <Step title="Save and execute">
+    Click **Save Configuration**, then run the workflow to see the AI response appear in the execution log.
+  </Step>
+</Steps>

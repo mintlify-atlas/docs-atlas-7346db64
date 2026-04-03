@@ -1,0 +1,458 @@
+---
+title: "Node Types Reference"
+description: "Complete reference for all AutoPilot node types"
+---
+
+AutoPilot workflows are composed of **nodes**, each performing a discrete unit of work. Every node has a `type` drawn from the `NodeType` enum defined in the Prisma schema. Node configuration is stored as a JSON `data` field on the `Node` model, and most action nodes additionally require a saved credential.
+
+## Node type overview
+
+| Type | Category | Requires credential | Description |
+|---|---|---|---|
+| `INITIAL` | Trigger | No | Default starting node; behaves identically to `MANUAL_TRIGGER` |
+| `MANUAL_TRIGGER` | Trigger | No | Starts the workflow when you click **Run** in the editor |
+| `HTTP_REQUEST` | Action | No | Makes an outbound HTTP call and stores the response in the workflow context |
+| `GOOGLE_FORM_TRIGGER` | Trigger | No | Fires when a Google Form submission is received via webhook |
+| `STRIPE_TRIGGER` | Trigger | No | Fires when a Stripe webhook event is received |
+| `ANTHROPIC` | AI | Yes (`ANTHROPIC`) | Generates text using Claude via the Anthropic API |
+| `GEMINI` | AI | Yes (`GEMINI`) | Generates text using Gemini via Google's Generative AI API |
+| `OPENAI` | AI | Yes (`OPENAI`) | Generates text using GPT models via the OpenAI API |
+| `DISCORD` | Messaging | Yes (`DISCORD_WEBHOOK`) | Sends a message to a Discord channel via a webhook URL |
+| `SLACK` | Messaging | Yes (`SLACK_WEBHOOK`) | Sends a message to a Slack channel via a webhook URL |
+| `TELEGRAM` | Messaging | Yes (`TELEGRAM_BOT`) | Sends a message to a Telegram chat via the Bot API |
+| `EMAIL_SMTP` | Messaging | Yes (`EMAIL_SMTP`) | Sends an email via SMTP (nodemailer) |
+
+<Note>
+Trigger nodes (`INITIAL`, `MANUAL_TRIGGER`, `GOOGLE_FORM_TRIGGER`, `STRIPE_TRIGGER`) pass the incoming event data into the workflow context unchanged. They do not modify or add keys beyond what the trigger payload already contains.
+</Note>
+
+---
+
+## Node configuration fields
+
+Each node stores its configuration in the `data` JSON field. The fields available depend on the node type. Handlebars template syntax (`{{variableName.key}}`) is supported in all string fields marked as "supports templates" below — the template is compiled against the current workflow context at execution time.
+
+<AccordionGroup>
+
+  <Accordion title="INITIAL / MANUAL_TRIGGER">
+    These nodes share the same executor (`manualTriggerExecutor`) and have no configurable fields. They pass the existing context through to the next node unchanged.
+
+    ```typescript
+    type ManualTriggerData = Record<string, unknown>;
+    ```
+
+    **Output:** The context is returned as-is. When the workflow is started with `initialData`, that data is already present in the context before this node runs.
+  </Accordion>
+
+  <Accordion title="GOOGLE_FORM_TRIGGER">
+    Receives a Google Form submission payload via webhook and passes it into the context.
+
+    ```typescript
+    type GoogleFormTriggerData = Record<string, unknown>;
+    ```
+
+    No configurable fields. The form submission data is injected into the context as `initialData` before the executor runs.
+
+    **Output:** Context is returned unchanged. Downstream nodes can reference form field values that were placed into context by the trigger event.
+  </Accordion>
+
+  <Accordion title="STRIPE_TRIGGER">
+    Receives a Stripe webhook event and exposes it through the context.
+
+    ```typescript
+    type StripeTriggerData = Record<string, unknown>;
+    ```
+
+    No configurable fields. When the Stripe webhook fires, the following keys are available in `context.stripeData`:
+
+    | Context path | Description |
+    |---|---|
+    | `{{stripeData.eventId}}` | Stripe event ID |
+    | `{{stripeData.eventType}}` | Event type string (e.g. `payment_intent.succeeded`) |
+    | `{{stripeData.customerId}}` | Stripe customer ID |
+    | `{{stripeData.amount}}` | Amount in smallest currency unit |
+    | `{{stripeData.currency}}` | Currency code (e.g. `usd`) |
+    | `{{stripeData.status}}` | Payment or object status |
+    | `{{stripeData.raw.fieldName}}` | Access any raw field from the Stripe event object |
+
+    **Output:** Context is returned unchanged; all values come from `initialData` set by the trigger.
+  </Accordion>
+
+  <Accordion title="HTTP_REQUEST">
+    Makes an outbound HTTP request and writes the response into the context.
+
+    ```typescript
+    type HttpRequestData = {
+      variableName?: string;
+      endpoint?: string;
+      method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+      body?: string;
+    };
+    ```
+
+    <ParamField body="variableName" type="string" required>
+      The key under which the HTTP response is stored in the context. Downstream nodes access it as `{{variableName.httpResponse.data}}`.
+    </ParamField>
+
+    <ParamField body="endpoint" type="string" required>
+      The full URL to call. Supports Handlebars templates (e.g. `https://api.example.com/users/{{trigger.userId}}`).
+    </ParamField>
+
+    <ParamField body="method" type="string" required>
+      HTTP method: `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`.
+    </ParamField>
+
+    <ParamField body="body" type="string">
+      JSON request body. Only sent for `POST`, `PUT`, and `PATCH` requests. `GET` and `DELETE` requests do not send a body. Supports Handlebars templates.
+    </ParamField>
+
+    **Output written to context:**
+    ```json
+    {
+      "<variableName>": {
+        "httpResponse": {
+          "status": 200,
+          "statusText": "OK",
+          "data": { ... }
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="OPENAI">
+    Generates text using an OpenAI GPT model and stores the result in the context.
+
+    ```typescript
+    type OpenAIData = {
+      credentialId?: string;
+      variableName?: string;
+      model?: string;
+      systemPrompt?: string;
+      userPrompt?: string;
+    };
+    ```
+
+    <ParamField body="credentialId" type="string" required>
+      ID of an `OPENAI` credential stored in AutoPilot. The executor fetches the API key at runtime and validates it belongs to the workflow owner.
+    </ParamField>
+
+    <ParamField body="variableName" type="string" required>
+      The key under which the AI response is stored in the context. Access it downstream as `{{variableName.aiResponse}}`.
+    </ParamField>
+
+    <ParamField body="model" type="string">
+      OpenAI model ID. Defaults to `gpt-4.1-mini` if not specified.
+    </ParamField>
+
+    <ParamField body="systemPrompt" type="string">
+      System message sent to the model. Supports Handlebars templates. Defaults to `"You are a helpful assistant."`.
+    </ParamField>
+
+    <ParamField body="userPrompt" type="string" required>
+      User message sent to the model. Supports Handlebars templates. Use `{{json someObject}}` to embed a context value as formatted JSON.
+    </ParamField>
+
+    **Output written to context:**
+    ```json
+    {
+      "<variableName>": {
+        "aiResponse": "The generated text from the model"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="ANTHROPIC">
+    Generates text using an Anthropic Claude model and stores the result in the context.
+
+    ```typescript
+    type AnthropicData = {
+      credentialId?: string;
+      variableName?: string;
+      model?: string;
+      systemPrompt?: string;
+      userPrompt?: string;
+    };
+    ```
+
+    <ParamField body="credentialId" type="string" required>
+      ID of an `ANTHROPIC` credential. The API key is fetched at runtime and access-checked against the workflow owner.
+    </ParamField>
+
+    <ParamField body="variableName" type="string" required>
+      Context key for the result. Access downstream as `{{variableName.aiResponse}}`.
+    </ParamField>
+
+    <ParamField body="model" type="string">
+      Anthropic model ID. Defaults to `claude-sonnet-4-6`.
+    </ParamField>
+
+    <ParamField body="systemPrompt" type="string">
+      System message. Supports Handlebars templates. Defaults to `"You are a helpful assistant."`.
+    </ParamField>
+
+    <ParamField body="userPrompt" type="string" required>
+      User message. Supports Handlebars templates.
+    </ParamField>
+
+    **Output written to context:**
+    ```json
+    {
+      "<variableName>": {
+        "aiResponse": "The generated text from the model"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="GEMINI">
+    Generates text using a Google Gemini model and stores the result in the context.
+
+    ```typescript
+    type GeminiData = {
+      credentialId?: string;
+      variableName?: string;
+      model?: string;
+      systemPrompt?: string;
+      userPrompt?: string;
+    };
+    ```
+
+    <ParamField body="credentialId" type="string" required>
+      ID of a `GEMINI` credential. The API key is fetched at runtime and access-checked against the workflow owner.
+    </ParamField>
+
+    <ParamField body="variableName" type="string" required>
+      Context key for the result. Access downstream as `{{variableName.aiResponse}}`.
+    </ParamField>
+
+    <ParamField body="model" type="string">
+      Gemini model ID. Defaults to `gemini-2.5-flash`.
+    </ParamField>
+
+    <ParamField body="systemPrompt" type="string">
+      System message. Supports Handlebars templates. Defaults to `"You are a helpful assistant."`.
+    </ParamField>
+
+    <ParamField body="userPrompt" type="string" required>
+      User message. Supports Handlebars templates.
+    </ParamField>
+
+    **Output written to context:**
+    ```json
+    {
+      "<variableName>": {
+        "aiResponse": "The generated text from the model"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="DISCORD">
+    Sends a message to a Discord channel via an Incoming Webhook and stores the delivery result in the context.
+
+    ```typescript
+    type DiscordData = {
+      credentialId?: string;
+      variableName?: string;
+      content?: string;
+      username?: string;
+      avatarUrl?: string;
+    };
+    ```
+
+    <ParamField body="credentialId" type="string" required>
+      ID of a `DISCORD_WEBHOOK` credential containing the full webhook URL.
+    </ParamField>
+
+    <ParamField body="variableName" type="string" required>
+      Context key for the delivery result. Access downstream as `{{variableName.success}}`, `{{variableName.messageId}}`, etc.
+    </ParamField>
+
+    <ParamField body="content" type="string" required>
+      The message text. Supports Handlebars templates. Automatically truncated to Discord's 2,000-character limit.
+    </ParamField>
+
+    <ParamField body="username" type="string">
+      Override the webhook's default display name. Supports Handlebars templates.
+    </ParamField>
+
+    <ParamField body="avatarUrl" type="string">
+      Override the webhook's default avatar. Supports Handlebars templates.
+    </ParamField>
+
+    **Output written to context:**
+    ```json
+    {
+      "<variableName>": {
+        "success": true,
+        "messageId": "1234567890",
+        "timestamp": "2024-01-01T00:00:00.000Z",
+        "provider": "discord"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="SLACK">
+    Sends a message to a Slack channel via an Incoming Webhook and stores the delivery result in the context.
+
+    ```typescript
+    type SlackData = {
+      credentialId?: string;
+      variableName?: string;
+      text?: string;
+    };
+    ```
+
+    <ParamField body="credentialId" type="string" required>
+      ID of a `SLACK_WEBHOOK` credential containing the Slack Incoming Webhook URL.
+    </ParamField>
+
+    <ParamField body="variableName" type="string" required>
+      Context key for the delivery result.
+    </ParamField>
+
+    <ParamField body="text" type="string" required>
+      The message text. Supports Handlebars templates. Automatically truncated to Slack's 40,000-character limit.
+    </ParamField>
+
+    **Output written to context:**
+    ```json
+    {
+      "<variableName>": {
+        "success": true,
+        "timestamp": "2024-01-01T00:00:00.000Z",
+        "provider": "slack"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="TELEGRAM">
+    Sends a message to a Telegram chat via the Bot API and stores the delivery result in the context.
+
+    ```typescript
+    type TelegramData = {
+      credentialId?: string;
+      variableName?: string;
+      chatId?: string;
+      text?: string;
+      parseMode?: "HTML" | "MarkdownV2" | "none";
+    };
+    ```
+
+    <ParamField body="credentialId" type="string" required>
+      ID of a `TELEGRAM_BOT` credential containing the bot token.
+    </ParamField>
+
+    <ParamField body="variableName" type="string" required>
+      Context key for the delivery result.
+    </ParamField>
+
+    <ParamField body="chatId" type="string" required>
+      Telegram chat ID or username. Supports Handlebars templates.
+    </ParamField>
+
+    <ParamField body="text" type="string" required>
+      The message text. Supports Handlebars templates. Automatically truncated to Telegram's 4,096-character limit.
+    </ParamField>
+
+    <ParamField body="parseMode" type="string">
+      Telegram parse mode: `HTML`, `MarkdownV2`, or `none`. When set to `none` (or omitted), no `parse_mode` is sent to the API.
+    </ParamField>
+
+    **Output written to context:**
+    ```json
+    {
+      "<variableName>": {
+        "success": true,
+        "messageId": "42",
+        "chatId": "-100123456789",
+        "timestamp": "2024-01-01T00:00:00.000Z",
+        "provider": "telegram"
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="EMAIL_SMTP">
+    Sends an email via SMTP using nodemailer and stores the delivery result in the context.
+
+    ```typescript
+    type EmailData = {
+      credentialId?: string;
+      variableName?: string;
+      smtpService?: string;
+      smtpHost?: string;
+      smtpPort?: string;
+      smtpSecure?: boolean;
+      fromEmail?: string;
+      toEmail?: string;
+      subject?: string;
+      body?: string;
+      isHtml?: boolean;
+    };
+    ```
+
+    <ParamField body="credentialId" type="string" required>
+      ID of an `EMAIL_SMTP` credential containing the SMTP password or app password.
+    </ParamField>
+
+    <ParamField body="variableName" type="string" required>
+      Context key for the delivery result.
+    </ParamField>
+
+    <ParamField body="smtpService" type="string">
+      Named SMTP service (e.g. `gmail`, `outlook`). When set to a value other than `custom`, nodemailer resolves the host and port automatically. Set to `custom` to specify `smtpHost` and `smtpPort` manually.
+    </ParamField>
+
+    <ParamField body="smtpHost" type="string">
+      SMTP host for custom configurations. Defaults to `smtp.gmail.com` when no service is specified.
+    </ParamField>
+
+    <ParamField body="smtpPort" type="string">
+      SMTP port. Defaults to `587`. When port `465` is used, `smtpSecure` defaults to `true`.
+    </ParamField>
+
+    <ParamField body="smtpSecure" type="boolean">
+      Whether to use TLS. Inferred from port when not specified.
+    </ParamField>
+
+    <ParamField body="fromEmail" type="string" required>
+      Sender email address. Also used as the SMTP auth username.
+    </ParamField>
+
+    <ParamField body="toEmail" type="string" required>
+      Recipient email address. Supports Handlebars templates.
+    </ParamField>
+
+    <ParamField body="subject" type="string" required>
+      Email subject line. Supports Handlebars templates.
+    </ParamField>
+
+    <ParamField body="body" type="string" required>
+      Email body content. Supports Handlebars templates. Treated as plain text unless `isHtml` is `true`.
+    </ParamField>
+
+    <ParamField body="isHtml" type="boolean">
+      When `true`, the body is sent as HTML. Defaults to `false`.
+    </ParamField>
+
+    **Output written to context:**
+    ```json
+    {
+      "<variableName>": {
+        "success": true,
+        "messageId": "<unique-message-id@smtp.example.com>",
+        "to": "recipient@example.com",
+        "subject": "Hello",
+        "timestamp": "2024-01-01T00:00:00.000Z",
+        "provider": "email"
+      }
+    }
+    ```
+  </Accordion>
+
+</AccordionGroup>

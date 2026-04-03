@@ -1,0 +1,261 @@
+---
+title: "Notification Actions"
+description: "Send messages via Discord, Slack, Telegram, and Email"
+---
+
+Notification action nodes send a message to an external channel during workflow execution. Use them to alert your team, notify customers, or post results after a trigger fires or an AI node completes.
+
+AutoPilot supports four notification channels:
+
+<CardGroup cols={2}>
+  <Card title="Discord" icon="discord">
+    Post a message to a Discord channel via an Incoming Webhook. Supports custom display names and avatar URLs.
+  </Card>
+  <Card title="Slack" icon="slack">
+    Send a message to a Slack channel via an Incoming Webhook. Plain text, up to 40,000 characters.
+  </Card>
+  <Card title="Telegram" icon="telegram">
+    Send a message to a Telegram chat via a Bot Token. Supports HTML and MarkdownV2 formatting.
+  </Card>
+  <Card title="Email (SMTP)" icon="envelope">
+    Send an email via SMTP. Works with Gmail, Outlook 365, Yahoo, SendGrid, Zoho, or any custom SMTP server.
+  </Card>
+</CardGroup>
+
+<Note>
+  Each notification node requires a saved credential. Go to **Credentials** and add the relevant credential for your channel before placing a notification node in your workflow.
+</Note>
+
+---
+
+## Discord
+
+The Discord node posts a message to a channel using a Discord Incoming Webhook URL. Messages exceeding Discord's 2,000-character limit are automatically truncated.
+
+**Required credential type:** `DISCORD_WEBHOOK`
+
+<ParamField path="credentialId" type="string" required>
+  A saved credential of type `DISCORD_WEBHOOK`. The credential value must be the full webhook URL provided by Discord (e.g. `https://discord.com/api/webhooks/...`).
+</ParamField>
+
+<ParamField path="variableName" type="string" required>
+  The context key where the send result is stored after execution. Access the result with `{{variableName.success}}`, `{{variableName.messageId}}`, and `{{variableName.timestamp}}`.
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  The message text to post. Maximum 2,000 characters — longer messages are truncated automatically. Supports Handlebars templating: use `{{variableName.field}}` to embed context data or `{{json variableName}}` to serialize an object.
+</ParamField>
+
+<ParamField path="username" type="string">
+  Optional. Overrides the webhook's default display name for this message. Supports Handlebars templating.
+</ParamField>
+
+<ParamField path="avatarUrl" type="string">
+  Optional. Overrides the webhook's default avatar for this message. Provide a publicly accessible image URL. Supports Handlebars templating.
+</ParamField>
+
+**Output written to context:**
+
+```json
+{
+  "variableName": {
+    "success": true,
+    "messageId": "1234567890123456789",
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "provider": "discord"
+  }
+}
+```
+
+**Use case:** Post a notification to your `#alerts` channel whenever a Stripe payment is received.
+
+```
+New payment of ${{stripeEvent.data.amount}} received from {{stripeEvent.data.customer_email}}.
+```
+
+---
+
+## Slack
+
+The Slack node sends a plain text message to a Slack channel using an Incoming Webhook URL. Messages exceeding Slack's 40,000-character limit are automatically truncated.
+
+**Required credential type:** `SLACK_WEBHOOK`
+
+<ParamField path="credentialId" type="string" required>
+  A saved credential of type `SLACK_WEBHOOK`. The credential value must be the full Incoming Webhook URL from your Slack app configuration (e.g. `https://hooks.slack.com/services/...`).
+</ParamField>
+
+<ParamField path="variableName" type="string" required>
+  The context key where the send result is stored. Access with `{{variableName.success}}` and `{{variableName.timestamp}}`.
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The message text to send. Maximum 40,000 characters — longer messages are truncated automatically. Supports Handlebars templating.
+</ParamField>
+
+**Output written to context:**
+
+```json
+{
+  "variableName": {
+    "success": true,
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "provider": "slack"
+  }
+}
+```
+
+**Use case:** Notify your team's `#submissions` channel when a Google Form is submitted.
+
+```
+New form submission from {{formResponse.responses.name}} ({{formResponse.responses.email}}).
+Summary: {{aiSummary.aiResponse}}
+```
+
+---
+
+## Telegram
+
+The Telegram node sends a message to a Telegram chat using the Bot API. Messages exceeding Telegram's 4,096-character limit are automatically truncated.
+
+**Required credential type:** `TELEGRAM_BOT`
+
+<ParamField path="credentialId" type="string" required>
+  A saved credential of type `TELEGRAM_BOT`. The credential value must be the bot token provided by BotFather (e.g. `123456:ABCdef...`).
+</ParamField>
+
+<ParamField path="variableName" type="string" required>
+  The context key where the send result is stored. Access with `{{variableName.success}}`, `{{variableName.messageId}}`, `{{variableName.chatId}}`, and `{{variableName.timestamp}}`.
+</ParamField>
+
+<ParamField path="chatId" type="string" required>
+  The ID of the Telegram chat, channel, or group to send the message to. Supports Handlebars templating — you can supply the chat ID dynamically from a previous node.
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The message text to send. Maximum 4,096 characters — longer messages are truncated. Supports Handlebars templating.
+</ParamField>
+
+<ParamField path="parseMode" type="string">
+  Optional. Controls how the message text is rendered. Options: `HTML`, `MarkdownV2`, or `none` (default). When set to `HTML` or `MarkdownV2`, Telegram applies the corresponding formatting.
+</ParamField>
+
+**Output written to context:**
+
+```json
+{
+  "variableName": {
+    "success": true,
+    "messageId": "987",
+    "chatId": "-1001234567890",
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "provider": "telegram"
+  }
+}
+```
+
+**Use case:** Send a formatted alert to a monitoring group when an HTTP request action detects an error condition.
+
+---
+
+## Email (SMTP)
+
+The Email node sends an email via SMTP using Nodemailer. It supports well-known email providers with automatic configuration or a fully custom SMTP server.
+
+**Required credential type:** `EMAIL_SMTP`
+
+The credential value is the SMTP password or app password. For Gmail, enable 2-step verification on your Google account and generate an App Password at **myaccount.google.com → Security → App Passwords**.
+
+<ParamField path="credentialId" type="string" required>
+  A saved credential of type `EMAIL_SMTP` containing the SMTP password or app password.
+</ParamField>
+
+<ParamField path="variableName" type="string" required>
+  The context key where the send result is stored. Access with `{{variableName.success}}`, `{{variableName.messageId}}`, `{{variableName.to}}`, and `{{variableName.timestamp}}`.
+</ParamField>
+
+<ParamField path="smtpService" type="string" required>
+  The email provider. Selecting a preset automatically configures the host and port. Available options: `gmail`, `Outlook365`, `Yahoo`, `SendGrid`, `Zoho`, `custom`. Select `custom` to enter your own SMTP host, port, and TLS settings.
+</ParamField>
+
+<ParamField path="smtpHost" type="string">
+  Custom SMTP server hostname. Only required when `smtpService` is `custom`. Defaults to `smtp.gmail.com` if not provided.
+</ParamField>
+
+<ParamField path="smtpPort" type="string">
+  Custom SMTP port number. Only required when `smtpService` is `custom`. Defaults to `587` if not provided. Port `465` enables TLS automatically.
+</ParamField>
+
+<ParamField path="smtpSecure" type="boolean">
+  Enable TLS/SSL. Only applies when `smtpService` is `custom`. Automatically enabled when port is `465`.
+</ParamField>
+
+<ParamField path="fromEmail" type="string" required>
+  The sender email address. Must match the email account associated with your SMTP credential.
+</ParamField>
+
+<ParamField path="toEmail" type="string" required>
+  The recipient email address. Separate multiple recipients with commas. Supports Handlebars templating — for example `{{formResponse.responses.email}}`.
+</ParamField>
+
+<ParamField path="subject" type="string" required>
+  The email subject line. Supports Handlebars templating.
+</ParamField>
+
+<ParamField path="body" type="string" required>
+  The email body. Supports Handlebars templating. When **HTML Format** is enabled, the body is sent as HTML; otherwise it is sent as plain text.
+</ParamField>
+
+<ParamField path="isHtml" type="boolean">
+  When enabled, the body is sent as `text/html` instead of `text/plain`. Defaults to `false`.
+</ParamField>
+
+**Output written to context:**
+
+```json
+{
+  "variableName": {
+    "success": true,
+    "messageId": "<message-id@smtp.example.com>",
+    "to": "recipient@example.com",
+    "subject": "Your notification subject",
+    "timestamp": "2024-01-15T10:30:00.000Z",
+    "provider": "email"
+  }
+}
+```
+
+**Use case:** Email a customer a confirmation after their form submission is processed by an AI node.
+
+```
+Subject: Thank you for your submission, {{formResponse.responses.name}}!
+Body: Here's the summary of your request: {{aiSummary.aiResponse}}
+```
+
+---
+
+## Configuring a notification node
+
+<Steps>
+  <Step title="Add the node to your canvas">
+    Drag a **Discord**, **Slack**, **Telegram**, or **Email** node from the node panel onto the canvas.
+  </Step>
+  <Step title="Connect it to the workflow">
+    Draw a connection from an upstream node (trigger or action) into the notification node's input handle.
+  </Step>
+  <Step title="Open node settings">
+    Click the node to open its configuration dialog.
+  </Step>
+  <Step title="Select a credential">
+    Choose the appropriate saved credential from the picker. For Discord and Slack this is a webhook URL; for Telegram a bot token; for Email an SMTP password or app password.
+  </Step>
+  <Step title="Fill in the message fields">
+    Enter the message content. Use `{{variableName.field}}` to embed data from previous nodes, and `{{json variableName}}` to serialize objects.
+  </Step>
+  <Step title="Set a variable name">
+    Enter a variable name to store the delivery result. Use this to check `{{variableName.success}}` in later nodes.
+  </Step>
+  <Step title="Save and run">
+    Click **Save Configuration**, then execute the workflow to send a test message.
+  </Step>
+</Steps>

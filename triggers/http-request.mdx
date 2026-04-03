@@ -1,0 +1,123 @@
+---
+title: "HTTP Request Trigger"
+description: "Trigger workflows via incoming HTTP requests"
+---
+
+The HTTP Request node makes an outbound HTTP request and injects the response into the workflow context. Place it at the start of a workflow to fetch data from an external API before downstream nodes process it, or use it anywhere in a workflow chain to call external services mid-execution.
+
+<Note>
+  Despite its name in the trigger group, the HTTP Request node is an **action node** that makes outbound requests. It is not a passive listener for incoming webhooks. Use it when your workflow needs to pull data from an external API as its first step.
+</Note>
+
+## How it works
+
+When the HTTP Request node executes, it:
+
+1. Resolves any `{{variable}}` expressions in the endpoint URL and request body using the current workflow context.
+2. Makes the HTTP request using the configured method.
+3. Reads the response — parsing it as JSON if the server returns `Content-Type: application/json`, or as plain text otherwise.
+4. Stores the full response under your chosen variable name in the workflow context.
+
+Downstream nodes can then reference the response data using `{{variableName.httpResponse.data}}`.
+
+## Configuration fields
+
+Double-click the HTTP Request node or click the settings icon to open the configuration panel.
+
+<ParamField body="Variable Name" type="string" required>
+  The name used to store this node's response in the workflow context. Must start with a letter or underscore and contain only alphanumeric characters, underscores, or dollar signs (e.g. `weatherData`, `userProfile`).
+
+  Once set, access the response with `{{variableName.httpResponse.data}}`.
+</ParamField>
+
+<ParamField body="HTTP Method" type="enum" required>
+  The HTTP method for the request. Supported values: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`.
+
+  The request body field is only shown for `POST`, `PUT`, and `PATCH` requests. `GET` and `DELETE` requests do not send a body.
+</ParamField>
+
+<ParamField body="Endpoint URL" type="string" required>
+  The full URL to request (e.g. `https://api.example.com/users`). You can embed workflow variables using Handlebars syntax:
+
+  - `{{googleFormData.responses.userId}}` — value from a preceding Google Form trigger
+  - `{{myApiCall.httpResponse.data.id}}` — value from a preceding HTTP Request node
+</ParamField>
+
+<ParamField body="Request Body" type="string">
+  A JSON string sent as the request body for `POST`, `PUT`, and `PATCH` requests. Supports `{{variable}}` interpolation:
+
+  ```json
+  {
+    "name": "{{googleFormData.responses.name}}",
+    "email": "{{googleFormData.respondentEmail}}"
+  }
+  ```
+
+  The body is automatically sent with `Content-Type: application/json`.
+</ParamField>
+
+## Adding the node
+
+<Steps>
+  <Step title="Add the node to the canvas">
+    Click the **+** placeholder or drag an HTTP Request node from the node panel onto the canvas.
+  </Step>
+  <Step title="Open the configuration panel">
+    Double-click the node or click the settings icon on the node card to open the HTTP Request dialog.
+  </Step>
+  <Step title="Set the variable name">
+    Enter a variable name (e.g. `apiResult`). This name determines how you reference the response in later nodes.
+  </Step>
+  <Step title="Choose the HTTP method">
+    Select `GET`, `POST`, `PUT`, `PATCH`, or `DELETE` from the dropdown.
+  </Step>
+  <Step title="Enter the endpoint URL">
+    Type the target URL. Use `{{variableName}}` to interpolate values from earlier nodes.
+  </Step>
+  <Step title="Add a request body (optional)">
+    For `POST`, `PUT`, and `PATCH` requests, enter a JSON body. Variables are resolved at execution time. `GET` and `DELETE` requests do not support a body.
+  </Step>
+  <Step title="Save and connect">
+    Click **Save**. Connect the node's output handle to the next node in your workflow.
+  </Step>
+</Steps>
+
+## Response structure
+
+The node stores the response under the variable name you configured. The stored object has this shape:
+
+```json
+{
+  "httpResponse": {
+    "status": 200,
+    "statusText": "OK",
+    "data": { ... }
+  }
+}
+```
+
+Access specific fields in downstream nodes:
+
+| Expression | Value |
+|---|---|
+| `{{apiResult.httpResponse.status}}` | HTTP status code (e.g. `200`) |
+| `{{apiResult.httpResponse.statusText}}` | Status text (e.g. `OK`) |
+| `{{apiResult.httpResponse.data}}` | Full parsed response body |
+| `{{apiResult.httpResponse.data.id}}` | A specific field from the response |
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Fetch API data at workflow start" icon="database">
+    Pull a user record, weather data, or product inventory from an external REST API before processing it with AI or notification nodes.
+  </Card>
+  <Card title="Chain multiple API calls" icon="link">
+    Use the response from one HTTP Request node as input to the next — for example, look up a user by email and then fetch their orders by ID.
+  </Card>
+  <Card title="Post data to external services" icon="send">
+    Send form submission data to a CRM, webhook, or internal API as part of a multi-step automation.
+  </Card>
+  <Card title="Combine with AI nodes" icon="sparkles">
+    Fetch content from an API and pipe it into an OpenAI or Anthropic node for summarization, classification, or generation.
+  </Card>
+</CardGroup>

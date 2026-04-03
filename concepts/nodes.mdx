@@ -1,0 +1,99 @@
+---
+title: "Nodes"
+description: "The building blocks of AutoPilot workflows"
+---
+
+A node is a single step in a workflow. Each node receives the current execution context, performs its action — calling an API, sending a message, running an AI prompt — and returns an updated context that the next node receives.
+
+Every node belongs to exactly one workflow. Deleting a workflow removes all its nodes.
+
+## Node properties
+
+| Property | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique identifier (CUID), generated automatically. |
+| `name` | `String` | Display label shown on the canvas. |
+| `type` | `NodeType` | Determines the node's behavior. See the [node types table](#node-types) below. |
+| `data` | `JSON` | Configuration specific to the node type — for example, a URL for HTTP Request or a prompt for Anthropic. Defaults to `{}`. |
+| `credentialId` | `String?` | Optional reference to a stored [credential](/credentials/overview). Required for AI model nodes and notification nodes. |
+| `position` | `JSON` | `{ x, y }` coordinates on the canvas. Saved automatically when you drag a node. |
+| `workflowId` | `String` | The workflow this node belongs to. |
+
+## Node types
+
+AutoPilot includes 12 node types across three categories.
+
+### Triggers
+
+Trigger nodes start a workflow and optionally inject external data into the execution context.
+
+| Node type | Description |
+|---|---|
+| `INITIAL` | The default starting node added to every new workflow. Acts as a no-op entry point. |
+| `MANUAL_TRIGGER` | Starts the workflow when you click **Execute** in the UI. No external data is injected. |
+| `HTTP_REQUEST` | Makes an outbound HTTP call. The response is merged into the context for downstream nodes. |
+| `GOOGLE_FORM_TRIGGER` | Receives a Google Form submission and passes the form data into the context. |
+| `STRIPE_TRIGGER` | Receives a Stripe webhook event and passes the event payload into the context. |
+
+### AI models
+
+AI model nodes send a prompt to a language model and add the response to the context. They all require a linked credential.
+
+| Node type | Description |
+|---|---|
+| `ANTHROPIC` | Sends a prompt to Anthropic Claude. Requires an `ANTHROPIC` credential. |
+| `GEMINI` | Sends a prompt to Google Gemini. Requires a `GEMINI` credential. |
+| `OPENAI` | Sends a prompt to OpenAI. Requires an `OPENAI` credential. |
+
+### Notifications
+
+Notification nodes deliver a message to an external channel. They all require a linked credential.
+
+| Node type | Description |
+|---|---|
+| `DISCORD` | Posts a message to a Discord channel via webhook. Requires a `DISCORD_WEBHOOK` credential. |
+| `SLACK` | Posts a message to a Slack channel via webhook. Requires a `SLACK_WEBHOOK` credential. |
+| `TELEGRAM` | Sends a message via a Telegram bot. Requires a `TELEGRAM_BOT` credential. |
+| `EMAIL_SMTP` | Sends an email using SMTP. Requires an `EMAIL_SMTP` credential. |
+
+## Adding a node
+
+<Steps>
+  <Step title="Open the node palette">
+    With a workflow open in the canvas editor, locate the node palette on the left side of the screen.
+  </Step>
+  <Step title="Drag the node onto the canvas">
+    Click and drag the node type you want onto the canvas. AutoPilot places it at your cursor position and assigns it a unique ID automatically.
+  </Step>
+  <Step title="Configure the node">
+    Click the node to open its configuration panel. Fill in the type-specific fields — for example, a target URL for HTTP Request or a system prompt for an AI model.
+  </Step>
+  <Step title="Link a credential (if required)">
+    AI model nodes and notification nodes require a credential. Select one from the **Credential** dropdown in the side panel. If you haven't added credentials yet, go to **Credentials** in the sidebar first.
+  </Step>
+  <Step title="Connect the node">
+    Draw a connection from the node's output handle to the input handle of the next node. See [Connections](/concepts/connections) for details.
+  </Step>
+</Steps>
+
+## Node configuration data
+
+Each node stores its settings in a `data` field as a JSON object. The exact fields depend on the node type. For example:
+
+- An `HTTP_REQUEST` node stores the target URL, HTTP method, headers, and body.
+- An `ANTHROPIC` node stores the user prompt and system prompt.
+- A `DISCORD` node stores the message content.
+
+<Note>
+  Node configuration is validated at execution time, not at save time. If required fields are missing (for example, a prompt or variable name on an AI node), the execution stops with an error on that node. Configure all required fields before running the workflow.
+</Note>
+
+## Credentials
+
+Nodes that interact with external services require a linked credential. Credentials are stored separately and referenced by ID — the actual API key or secret is never embedded in the node's `data` field.
+
+You can manage your credentials in the **Credentials** section of the dashboard. Each credential has a type that must match the node type it is linked to. For example, an `ANTHROPIC` credential can only be linked to an `ANTHROPIC` node.
+
+<Tip>
+  Add your credentials before building your workflow so you can link them to nodes as you go.
+</Tip>

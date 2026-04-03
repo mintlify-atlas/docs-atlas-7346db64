@@ -1,28 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "AutoPilot",
+  "projectType": "saas",
+  "projectName": "AutoPilot",
+  "projectDescription": "A visual workflow automation platform inspired by n8n, enabling users to build, connect, and execute multi-step automations with AI models, triggers, and notification services.",
   "theme": "luma",
-  "colors": {
-    "primary": "#7c7c7c",
-    "light": "#080808",
-    "dark": "#c1c1c1"
-  },
-  "favicon": "https://media.brand.dev/4df870fc-c790-482f-9c7a-c7adeafd16f0.png",
-  "logo": {
-    "light": "https://media.brand.dev/f81a25db-0f7d-4772-924d-272c1eadfbb2.svg",
-    "dark": "https://media.brand.dev/c8fbe76b-ded9-43ef-9fa5-5cddf153b7cd.png"
-  },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/Gharbi-Rayen/AutoPilot"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/Gharbi-Rayen/AutoPilot"
-    }
-  },
+  "primaryColor": "#7c7c7c",
+  "lightColor": "#080808",
+  "darkColor": "#c1c1c1",
   "navigation": {
     "tabs": [
       {
@@ -97,5 +80,26 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Visual drag-and-drop workflow editor powered by React Flow",
+    "Multi-provider AI support: OpenAI, Anthropic (Claude), and Google Gemini",
+    "Event-driven execution via Inngest with real-time progress streaming",
+    "Trigger support for manual, HTTP, Google Forms, and Stripe webhooks",
+    "Notification actions for Discord, Slack, Telegram, and Email (SMTP)",
+    "Credential management for securely storing API keys and tokens",
+    "Subscription billing via Polar.sh with a Pro tier",
+    "Topological sort ensuring correct node execution order"
+  ],
+  "publicApiSurface": [
+    "POST /api/inngest — Inngest event ingestion endpoint",
+    "POST /api/trpc/workflows — Workflow CRUD operations",
+    "POST /api/trpc/credentials — Credential management",
+    "POST /api/trpc/aiModels — AI model configuration",
+    "POST /api/webhooks/google-form — Google Form trigger webhook",
+    "POST /api/webhooks/stripe — Stripe event trigger webhook",
+    "POST /api/auth/* — Authentication endpoints (better-auth)",
+    "NodeType enum: MANUAL_TRIGGER | HTTP_REQUEST | GOOGLE_FORM_TRIGGER | STRIPE_TRIGGER | OPENAI | ANTHROPIC | GEMINI | DISCORD | SLACK | TELEGRAM | EMAIL_SMTP",
+    "executeWorkflow Inngest function — orchestrates node execution via topological sort"
+  ]
 }

@@ -1,0 +1,186 @@
+---
+title: "Context & Data Flow"
+description: "How data flows between nodes during execution"
+---
+
+The workflow **context** is the shared data object that flows through every node in a workflow execution. Understanding how it works lets you pass information from a trigger through AI models, HTTP calls, and notification nodes in a single automated pipeline.
+
+## What the context is
+
+The context is a plain JavaScript object typed as `Record<string, unknown>`. It starts either empty or pre-populated with trigger data, then accumulates new keys as each node runs:
+
+```typescript
+// from src/features/executions/components/types.ts
+export type workflowContext = Record<string, unknown>;
+```
+
+The context is initialized in the Inngest function before any nodes execute:
+
+```typescript
+// src/inngest/functions.ts
+let context = event.data.initialData || {};
+```
+
+When a trigger fires (e.g. a Stripe webhook or an HTTP POST), the platform sets `initialData` to the trigger payload. If the workflow is started manually with no payload, the context begins as an empty object `{}`.
+
+## How data accumulates
+
+Each executor receives the full current context and returns a **new context object** that spreads the previous values and adds (or overwrites) one or more keys:
+
+```typescript
+// Pattern used by every action executor
+return {
+  ...context,           // preserve all existing keys
+  [data.variableName]: result,  // add this node's output
+};
+```
+
+This means every node downstream sees every key that all upstream nodes have written. Context is never reduced — nodes can only add or overwrite keys.
+
+<Note>
+Trigger nodes (`MANUAL_TRIGGER`, `INITIAL`, `GOOGLE_FORM_TRIGGER`, `STRIPE_TRIGGER`) return the context unchanged. They do not add any new keys themselves; their data arrives via `initialData` before the first node runs.
+</Note>
+
+## Execution order
+
+Nodes do not run in the order they were created. AutoPilot performs a **topological sort** of the workflow graph before execution begins:
+
+```typescript
+// src/inngest/utils.ts
+export const topologicalSort = (nodes: Node[], connections: Connection[]): Node[] => {
+  const edges: [string, string][] = connections.map((connection) => [
+    connection.fromNodeId,
+    connection.toNodeId,
+  ]);
+  // ...
+  sortedNodeIds = toposort(edges);
+  return sortedNodeIds.map((id) => nodeMap.get(id)!).filter(Boolean);
+};
+```
+
+This guarantees that a node always runs **after** all nodes it depends on (i.e. all nodes that connect into it). Cycles are not allowed and will throw an error at execution time.
+
+After sorting, the Inngest function iterates the ordered list and calls each executor in sequence, passing the latest context into each call:
+
+```typescript
+for (const node of sortedNodes) {
+  const executor = getExecutor(node.type as NodeType);
+  context = await executor({
+    data: node.data as Record<string, unknown>,
+    nodeId: node.id,
+    context,           // current accumulated context
+    step,
+    publish,
+    userId: ownerId,
+  });
+}
+```
+
+## Referencing context values in node configuration
+
+All string configuration fields on action nodes support **Handlebars templates**. You reference a context key by wrapping it in double curly braces:
+
+```handlebars
+{{variableName.key}}
+```
+
+Every executor compiles its template fields against the context immediately before using them:
+
+```typescript
+// Example from the HTTP Request executor
+const endpoint = Handlebars.compile(data.endpoint)(context);
+const resolvedBody = Handlebars.compile(data.body || "{}")(context);
+
+// Example from AI executors
+const userPrompt = Handlebars.compile(data.userPrompt)(context);
+```
+
+A custom `{{json}}` helper is registered in every executor to serialize any context value as formatted JSON:
+
+```handlebars
+{{json stripeData}}
+```
+
+This is particularly useful when you want to forward a structured object (like a Stripe event or an HTTP response body) as part of an AI prompt.
+
+## End-to-end example
+
+Consider a workflow with three nodes connected in sequence:
+
+1. **Stripe trigger** — fires when a payment succeeds
+2. **OpenAI** — summarizes the payment for a support team
+3. **Slack** — posts the summary to a channel
+
+**After the trigger fires**, the context contains:
+
+```json
+{
+  "stripeData": {
+    "eventId": "evt_1ABC",
+    "eventType": "payment_intent.succeeded",
+    "customerId": "cus_XYZ",
+    "amount": 4999,
+    "currency": "usd",
+    "status": "succeeded"
+  }
+}
+```
+
+**After the OpenAI node runs** (with `variableName` set to `"summary"`), the context becomes:
+
+```json
+{
+  "stripeData": {
+    "eventId": "evt_1ABC",
+    "eventType": "payment_intent.succeeded",
+    "customerId": "cus_XYZ",
+    "amount": 4999,
+    "currency": "usd",
+    "status": "succeeded"
+  },
+  "summary": {
+    "aiResponse": "Customer cus_XYZ completed a $49.99 payment successfully."
+  }
+}
+```
+
+The Slack node's `text` field can then reference:
+
+```handlebars
+New payment: {{summary.aiResponse}}
+```
+
+**After the Slack node runs** (with `variableName` set to `"slackResult"`), the final context is:
+
+```json
+{
+  "stripeData": { ... },
+  "summary": { "aiResponse": "Customer cus_XYZ completed a $49.99 payment successfully." },
+  "slackResult": {
+    "success": true,
+    "timestamp": "2024-01-01T12:00:00.000Z",
+    "provider": "slack"
+  }
+}
+```
+
+This final context object is also the return value of the Inngest function and is available in the execution log.
+
+## Error propagation
+
+If any node throws an error, execution halts immediately. The error is re-thrown out of the `for` loop and Inngest records the failure:
+
+```typescript
+// src/inngest/functions.ts
+try {
+  context = await executor({ ... });
+} catch (error) {
+  throw error; // halts the entire workflow
+}
+```
+
+Nodes that have not yet run are skipped. The context accumulated up to the failing node is not persisted — only the final return value from a fully successful execution is written back.
+
+<Warning>
+AutoPilot executors use `NonRetriableError` from Inngest for validation failures (missing fields, invalid credentials). These errors do not trigger automatic retries. The workflow must be re-run manually after fixing the configuration.
+</Warning>

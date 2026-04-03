@@ -1,0 +1,132 @@
+---
+title: "Executions"
+description: "How AutoPilot runs your workflows"
+---
+
+An execution is a single run of a workflow. Every time you click **Execute** — or a trigger fires from an external event like an HTTP request or a Stripe payment — AutoPilot creates a new execution, runs every node in the correct order, and records the final result.
+
+## How an execution works
+
+<Steps>
+  <Step title="Dispatch">
+    AutoPilot sends a `workflows/execute.workflow` event to [Inngest](https://www.inngest.com), a background job runner. The event payload includes the workflow ID and any `initialData` from the trigger (for example, a Stripe event object or an HTTP request body).
+  </Step>
+  <Step title="Load the workflow">
+    Inngest calls the `execute/workflow` function. The first step fetches the full workflow from the database — including all nodes and connections — and passes them to the topological sort.
+  </Step>
+  <Step title="Topological sort">
+    AutoPilot sorts the nodes using a topological sort so that every node runs after all the nodes it depends on. Nodes with no connections are included as well. If the workflow contains a cycle, the execution fails immediately with an error.
+  </Step>
+  <Step title="Initialize context">
+    The execution context starts as the `initialData` from the trigger event, or an empty object `{}` if no trigger data was provided. This context is a plain `Record<string, unknown>` that every node can read and write.
+  </Step>
+  <Step title="Execute nodes sequentially">
+    AutoPilot iterates through the sorted nodes one by one. For each node, it looks up the correct executor from the executor registry, calls it with the current context, and replaces the context with the executor's return value.
+
+    ```typescript
+    context = await executor({ data, nodeId, context, step, publish, userId });
+    ```
+
+    Each executor receives:
+    - `data` — the node's stored configuration JSON
+    - `nodeId` — the node's unique ID
+    - `context` — the accumulated data from all previous nodes
+    - `step` — Inngest step tools for durable execution
+    - `publish` — the real-time streaming publisher
+    - `userId` — the workflow owner's ID, used for credential lookups
+  </Step>
+  <Step title="Return the result">
+    After all nodes complete, the function returns `{ workflowId, result: context }`. The final context contains the accumulated output of every node in the workflow.
+  </Step>
+</Steps>
+
+## Topological sort
+
+AutoPilot uses the `toposort` library to determine the correct node execution order based on the workflow's connections.
+
+- Each connection `(fromNodeId → toNodeId)` becomes a directed edge.
+- Nodes that have no connections at all are included as self-edges so they are not dropped from the sort.
+- The resulting order guarantees that a node only runs after every node that feeds into it has already completed.
+
+<Warning>
+  Workflows with cyclic connections — where node A depends on node B and node B depends on node A — cannot be executed. AutoPilot detects cycles during the topological sort and stops the execution immediately with an error message.
+</Warning>
+
+## Trigger data and initial context
+
+When a trigger node fires with external data — such as a Stripe webhook payload or an HTTP request body — that data is passed as `initialData` in the Inngest event and becomes the starting context for the execution.
+
+```typescript
+await inngest.send({
+  name: "workflows/execute.workflow",
+  data: {
+    workflowId: "...",
+    initialData: { stripeEvent: { type: "payment_intent.succeeded", ... } },
+  },
+});
+```
+
+Downstream AI or notification nodes can read this data directly from the context.
+
+## Real-time streaming
+
+Every node publishes its progress and output to a dedicated Inngest Realtime channel as it runs. This lets the AutoPilot UI display results node-by-node while the execution is still in progress — you do not have to wait for the entire workflow to complete.
+
+Each node type has its own channel:
+
+<AccordionGroup>
+  <Accordion title="Trigger channels">
+    `HttpRequestChannel`, `ManualTriggerChannel`, `GoogleFormTriggerChannel`, `StripeTriggerChannel`
+  </Accordion>
+  <Accordion title="AI model channels">
+    `AnthropicChannel`, `GeminiChannel`, `OpenAIChannel`
+  </Accordion>
+  <Accordion title="Notification channels">
+    `DiscordChannel`, `SlackChannel`, `TelegramChannel`, `EmailChannel`
+  </Accordion>
+</AccordionGroup>
+
+The UI subscribes to these channels when a run starts and renders each node's status and output as events arrive.
+
+## Error handling
+
+If any node throws an error during execution, AutoPilot stops the run immediately. The error is logged with the node's ID, type, and error message. No subsequent nodes are executed.
+
+```
+[Inngest] Node execution failed: {
+  nodeId: "clx...",
+  nodeType: "ANTHROPIC",
+  error: "Invalid API key"
+}
+```
+
+The execution is marked as failed. You can view the error details in the **Executions** dashboard. The `execute/workflow` function is configured with `retries: 0`, so failed executions are not automatically retried.
+
+<Info>
+  Because Inngest steps are durable, a node executor can call `step.run(...)` internally to checkpoint its work. If an infrastructure failure occurs mid-step, Inngest can recover from the last completed checkpoint rather than restarting the whole workflow.
+</Info>
+
+## Viewing executions
+
+Open the **Executions** section of the dashboard to navigate to the executions view. Real-time node status and output are streamed to the canvas while a workflow is running — each node on the canvas updates its status indicator (loading → success or error) as it completes.
+
+## Executor registry
+
+Every node type maps to a specific executor function. The registry is defined in `executor-registry.ts` and covers all 12 node types:
+
+| Node type | Executor |
+|---|---|
+| `INITIAL` | `manualTriggerExecutor` |
+| `MANUAL_TRIGGER` | `manualTriggerExecutor` |
+| `HTTP_REQUEST` | `HttpRequestExecutor` |
+| `GOOGLE_FORM_TRIGGER` | `GoogleFormExecutor` |
+| `STRIPE_TRIGGER` | `StripeExecutor` |
+| `ANTHROPIC` | `AnthropicExecutor` |
+| `GEMINI` | `GeminiExecutor` |
+| `OPENAI` | `OpenAIExecutor` |
+| `DISCORD` | `DiscordExecutor` |
+| `SLACK` | `SlackExecutor` |
+| `TELEGRAM` | `TelegramExecutor` |
+| `EMAIL_SMTP` | `EmailExecutor` |
+
+If a node type has no registered executor, the execution stops with a `No executor found for node type` error.

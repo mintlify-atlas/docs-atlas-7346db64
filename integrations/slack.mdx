@@ -1,0 +1,82 @@
+---
+title: "Slack"
+description: "Send messages to a Slack channel via incoming webhook inside your AutoPilot workflows."
+---
+
+The Slack node posts a message to a Slack channel using an incoming webhook URL. Message text supports Handlebars template syntax and Slack's `mrkdwn` formatting, so you can embed dynamic data from earlier nodes with rich formatting. On success, the node stores delivery metadata in the workflow context for use by downstream nodes.
+
+## Prerequisites
+
+You need a **Slack Webhook** credential saved to your account before you can configure this node. The credential stores a Slack incoming webhook URL.
+
+<Steps>
+  <Step title="Create an incoming webhook in Slack">
+    Go to your Slack App configuration at [api.slack.com/apps](https://api.slack.com/apps), select your app (or create one), navigate to **Incoming Webhooks**, activate the feature, and click **Add New Webhook to Workspace**. Choose a channel and copy the generated webhook URL.
+  </Step>
+  <Step title="Save it in AutoPilot">
+    Navigate to **Dashboard → Credentials**, click **New Credential**, choose type **Slack Webhook**, and paste the webhook URL. See [Supported credential types](/credentials/supported-types) for details.
+  </Step>
+  <Step title="Select it in the node">
+    Open the Slack node settings and pick the credential from the **Webhook URL** picker.
+  </Step>
+</Steps>
+
+<Note>
+  Slack's free plan limits you to 10 active incoming webhook integrations across your workspace. If you reach this limit, you need to remove an existing webhook before adding a new one.
+</Note>
+
+## Configuration
+
+<ParamField body="credentialId" type="string" required>
+  The saved Slack Webhook credential containing the webhook URL. Select from credentials of type **Slack Webhook**.
+</ParamField>
+
+<ParamField body="variableName" type="string" required>
+  The key under which the node's result is stored in the workflow context. Must start with a letter, underscore, or `$`, and contain only alphanumeric characters, underscores, or `$`. Access the result in later nodes as `{{variableName.success}}` and `{{variableName.timestamp}}`.
+</ParamField>
+
+<ParamField body="text" type="string" required>
+  The message text sent to Slack. Maximum 40,000 characters — longer content is automatically truncated with a `[truncated]` suffix. Supports Slack `mrkdwn` formatting (e.g., `*bold*`, `_italic_`, `` `code` ``, `>blockquote`). Supports `{{variable}}` and `{{json variable}}` Handlebars syntax to insert data from previous nodes.
+</ParamField>
+
+## Output
+
+On success, the node merges the following object into the workflow context under the key you specified in **Variable Name**:
+
+```json
+{
+  "success": true,
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "provider": "slack"
+}
+```
+
+On failure, the `success` field is `false` and an `error` string describes the Slack API response.
+
+<Note>
+  Unlike Discord, Slack's incoming webhook API returns a plain `ok` text response rather than a message object, so no `messageId` is available in the output.
+</Note>
+
+Reference the delivery status in downstream nodes with `{{variableName.success}}` and the delivery time with `{{variableName.timestamp}}`.
+
+<Warning>
+  If the Slack API returns anything other than `ok`, the result object will have `success: false` with an `error` field containing the status code and response body. A network-level failure (connection error, timeout) will throw a non-retriable error and halt workflow execution. Check `{{variableName.success}}` in downstream nodes to handle delivery failures gracefully.
+</Warning>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Team alerts on new Stripe events" icon="credit-card">
+    Trigger a workflow on a Stripe webhook (new payment, subscription cancelled) and post a formatted Slack message with customer and amount details to your `#billing` channel.
+  </Card>
+  <Card title="AI-summarized reports" icon="sparkles">
+    Schedule a workflow that fetches data, passes it through a Gemini or OpenAI node to generate a summary, then posts the summary as a formatted Slack message to your team.
+  </Card>
+  <Card title="On-call incident notifications" icon="triangle-exclamation">
+    Receive an HTTP request trigger from your monitoring system and send a Slack alert with severity level and affected service to your `#incidents` channel.
+  </Card>
+</CardGroup>
+
+---
+
+See [Supported credential types](/credentials/supported-types) for instructions on creating and managing Slack Webhook credentials.

@@ -1,0 +1,94 @@
+---
+title: "Telegram"
+description: "Send messages to a Telegram chat via Bot API inside your AutoPilot workflows."
+---
+
+The Telegram node sends a message to a Telegram chat (personal, group, or channel) using the Telegram Bot API. Message text supports Handlebars template syntax and optional HTML or MarkdownV2 formatting. You specify a target Chat ID so messages can be routed to different recipients at runtime. On success, the node stores the resulting message ID and delivery metadata in the workflow context.
+
+## Prerequisites
+
+You need a **Telegram Bot** credential saved to your account before you can configure this node. The credential stores your Telegram bot token.
+
+<Steps>
+  <Step title="Create a bot with BotFather">
+    Open Telegram and message [@BotFather](https://t.me/botfather). Send the `/newbot` command and follow the prompts to name your bot. BotFather will give you a token in the format `123456789:AABBccDDeeFFggHHii...`.
+  </Step>
+  <Step title="Get your Chat ID">
+    Send a message to your bot (for personal chats), then message [@userinfobot](https://t.me/userinfobot) to retrieve your personal Chat ID. For group chats, add your bot to the group and message [@RawDataBot](https://t.me/rawdatabot) to find the group's Chat ID (typically a negative number like `-1001234567890`).
+  </Step>
+  <Step title="Save the token in AutoPilot">
+    Navigate to **Dashboard → Credentials**, click **New Credential**, choose type **Telegram Bot**, and paste the bot token. See [Supported credential types](/credentials/supported-types) for details.
+  </Step>
+  <Step title="Select it in the node">
+    Open the Telegram node settings and pick the credential from the **Bot Token** picker.
+  </Step>
+</Steps>
+
+## Configuration
+
+<ParamField body="credentialId" type="string" required>
+  The saved Telegram Bot credential containing the bot token. Select from credentials of type **Telegram Bot**.
+</ParamField>
+
+<ParamField body="variableName" type="string" required>
+  The key under which the node's result is stored in the workflow context. Must start with a letter, underscore, or `$`, and contain only alphanumeric characters, underscores, or `$`. Access the result in later nodes as `{{variableName.success}}` and `{{variableName.messageId}}`.
+</ParamField>
+
+<ParamField body="chatId" type="string" required>
+  The Telegram Chat ID of the recipient. Use a numeric user ID for personal chats, or a negative group/channel ID (e.g., `-1001234567890`) for group chats and channels. Supports `{{variable}}` Handlebars syntax so the chat ID can be set dynamically from prior nodes.
+</ParamField>
+
+<ParamField body="parseMode" type="string" default="none">
+  Controls how the message text is parsed for formatting. Options:
+  - `none` — sends the message as plain text (default)
+  - `HTML` — parses HTML tags such as `<b>`, `<i>`, `<code>`, and `<a href="...">`
+  - `MarkdownV2` — parses Telegram's MarkdownV2 dialect; special characters must be escaped with `\`
+</ParamField>
+
+<ParamField body="text" type="string" required>
+  The message body sent to Telegram. Maximum 4,096 characters — longer content is automatically truncated with a `[truncated]` suffix. Supports `{{variable}}` and `{{json variable}}` Handlebars syntax to insert data from previous nodes. Telegram rate limits: 30 messages per second globally, 20 messages per minute per group chat.
+</ParamField>
+
+<Note>
+  When using `HTML` or `MarkdownV2` parse modes, ensure your message content is properly formatted. Malformed HTML or unescaped MarkdownV2 special characters will cause the Telegram API to return an error.
+</Note>
+
+## Output
+
+On success, the node merges the following object into the workflow context under the key you specified in **Variable Name**:
+
+```json
+{
+  "success": true,
+  "messageId": "42",
+  "chatId": "-1001234567890",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "provider": "telegram"
+}
+```
+
+On failure, the `success` field is `false` and an `error` string contains the description returned by the Telegram API.
+
+Reference the delivery status with `{{variableName.success}}`, the sent message ID with `{{variableName.messageId}}`, and the resolved chat ID with `{{variableName.chatId}}`.
+
+<Warning>
+  Telegram bots must be added to a group or channel before they can send messages to it. If the bot is not a member, the API will return a `chat not found` or `forbidden` error and the node will fail.
+</Warning>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Personal workflow notifications" icon="bell">
+    Build a workflow triggered by a Stripe event or HTTP request and send yourself a Telegram message with the key details — useful for personal projects where you don't need a team channel.
+  </Card>
+  <Card title="Dynamic recipient routing" icon="route">
+    Set **Chat ID** using a `{{variable}}` reference so the same workflow can send messages to different users or groups depending on data from a prior step.
+  </Card>
+  <Card title="Formatted status updates" icon="code">
+    Use `HTML` parse mode to send richly formatted messages — bold headings, inline code, and hyperlinks — to a Telegram group channel used as a status board.
+  </Card>
+</CardGroup>
+
+---
+
+See [Supported credential types](/credentials/supported-types) for instructions on creating and managing Telegram Bot credentials.

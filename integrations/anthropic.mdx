@@ -1,0 +1,82 @@
+---
+title: "Anthropic"
+description: "Generate text with Claude models inside your AutoPilot workflows."
+---
+
+The Anthropic node calls the Anthropic API to generate text from a prompt and stores the response in the workflow context. You can reference that response by variable name in any downstream node. Both the system prompt and user prompt support Handlebars template syntax, so you can inject data produced by earlier steps directly into your prompts.
+
+## Prerequisites
+
+You need an **Anthropic** credential saved to your account before you can configure this node. The credential stores your Anthropic API key.
+
+<Steps>
+  <Step title="Get your API key">
+    Log in to [console.anthropic.com](https://console.anthropic.com), go to **API Keys**, and create a new key.
+  </Step>
+  <Step title="Save it in AutoPilot">
+    Navigate to **Dashboard → Credentials**, click **New Credential**, choose type **Anthropic**, and paste your key. See [Supported credential types](/credentials/supported-types) for details.
+  </Step>
+  <Step title="Select it in the node">
+    Open the Anthropic node settings and pick the credential from the **API Key** picker.
+  </Step>
+</Steps>
+
+## Configuration
+
+<ParamField body="credentialId" type="string" required>
+  The saved Anthropic credential whose API key is used to authenticate requests. Select from credentials of type **Anthropic**.
+</ParamField>
+
+<ParamField body="model" type="string" required default="claude-sonnet-4-6">
+  The Claude model to use for text generation. Defaults to `claude-sonnet-4-6`. The dropdown lists all models available through your API key.
+</ParamField>
+
+<ParamField body="variableName" type="string" required>
+  The key under which the node's output is stored in the workflow context. Must start with a letter, underscore, or `$`, and contain only alphanumeric characters, underscores, or `$`. Access the response in later nodes as `{{variableName.aiResponse}}`.
+</ParamField>
+
+<ParamField body="systemPrompt" type="string">
+  Optional instructions that set the model's role and behavior. If omitted, the system prompt defaults to `"You are a helpful assistant."` Supports `{{variable}}` and `{{json variable}}` Handlebars syntax for interpolating context values.
+</ParamField>
+
+<ParamField body="userPrompt" type="string" required>
+  The main input sent to the model. Supports `{{variableName.field}}` Handlebars syntax to reference output from previous nodes. Example: `Summarize the following text: {{previousStep.data}}`.
+</ParamField>
+
+<Note>
+  Both `systemPrompt` and `userPrompt` are compiled through Handlebars before the API call, so any `{{variable}}` references are resolved against the current workflow context at execution time.
+</Note>
+
+## Output
+
+On success, the node merges the following object into the workflow context under the key you specified in **Variable Name**:
+
+```json
+{
+  "aiResponse": "The model's generated text response."
+}
+```
+
+Reference the response in downstream nodes with `{{variableName.aiResponse}}`.
+
+<Warning>
+  If the API call fails, the node throws a non-retriable error and halts workflow execution. Check that your API key is valid, the selected model is available on your account, and your Anthropic account has sufficient quota.
+</Warning>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Long-document analysis" icon="magnifying-glass">
+    Pass the text of a lengthy document retrieved by an HTTP request trigger, then use Claude's large context window to extract key points or answer specific questions.
+  </Card>
+  <Card title="Structured data extraction" icon="table">
+    Receive a raw text payload from a webhook and prompt Claude to extract named entities or structured fields, then pass the result to an email or Slack node.
+  </Card>
+  <Card title="Customer message routing" icon="route">
+    Receive a support message from a form trigger, classify its intent with Claude, and route the workflow to the appropriate notification channel based on the response.
+  </Card>
+</CardGroup>
+
+---
+
+See [Supported credential types](/credentials/supported-types) for instructions on creating and managing Anthropic credentials.

@@ -1,0 +1,128 @@
+---
+title: "Stripe Trigger"
+description: "Start workflows from Stripe payment events"
+---
+
+The Stripe Trigger starts a workflow whenever a Stripe event fires — such as a completed payment, a new customer, or a cancelled subscription. AutoPilot receives the event from Stripe via a webhook, verifies its authenticity using your signing secret, and passes the structured event data into the workflow context.
+
+## How it works
+
+AutoPilot exposes a webhook endpoint at `/api/webhooks/stripe`. When an event occurs in your Stripe account, Stripe sends a signed `POST` request to this endpoint. AutoPilot verifies the signature using the `STRIPE_WEBHOOK_SECRET` environment variable, extracts key fields from the event payload, and triggers an Inngest workflow execution.
+
+The workflow receives the data under the `stripeData` key in the context object.
+
+<Warning>
+  You must set the `STRIPE_WEBHOOK_SECRET` environment variable in your AutoPilot deployment. Without it, AutoPilot will accept unsigned requests and log a warning — **this is insecure in production**. Always configure the webhook secret before deploying to a live environment.
+</Warning>
+
+## Setting up the trigger
+
+<Steps>
+  <Step title="Add the Stripe Trigger node">
+    On the workflow canvas, click the **+** placeholder node to open the node selector. Choose **Stripe** from the Triggers section.
+  </Step>
+  <Step title="Open the configuration dialog">
+    Double-click the node or click the settings icon to open the Stripe Trigger Configuration dialog.
+  </Step>
+  <Step title="Copy the webhook URL">
+    AutoPilot generates a unique webhook URL for this workflow:
+
+    ```
+    https://your-app.com/api/webhooks/stripe?workflowId=<your-workflow-id>
+    ```
+
+    Click the copy icon to copy it to your clipboard.
+  </Step>
+  <Step title="Add the endpoint in Stripe">
+    Open your [Stripe Dashboard](https://dashboard.stripe.com) and navigate to **Developers** → **Webhooks**. Click **Add endpoint**, paste the webhook URL, and select the events you want to listen for.
+  </Step>
+  <Step title="Copy the signing secret">
+    After saving the endpoint, Stripe displays a **Signing secret** (starts with `whsec_`). Copy it and add it to your AutoPilot environment as:
+
+    ```bash
+    STRIPE_WEBHOOK_SECRET=whsec_...
+    ```
+  </Step>
+  <Step title="Test the integration">
+    Use the **Send test webhook** button in the Stripe Dashboard, or the Stripe CLI, to fire a test event. The Stripe Trigger node on the canvas should update its status to **success**.
+  </Step>
+</Steps>
+
+## Webhook endpoint
+
+The webhook listens for `POST` requests at:
+
+```
+POST /api/webhooks/stripe?workflowId=<workflowId>
+```
+
+The `workflowId` query parameter is required. Requests without it return a `400` error.
+
+You can verify the endpoint is active by sending a `GET` request — it returns a JSON response listing supported event types.
+
+## Supported event types
+
+The following events are commonly used with the Stripe Trigger. Any valid Stripe event type is accepted.
+
+| Event | Description |
+|---|---|
+| `payment_intent.succeeded` | A payment was successfully completed |
+| `payment_intent.payment_failed` | A payment attempt failed |
+| `customer.created` | A new Stripe customer was created |
+| `customer.updated` | A customer's details were updated |
+| `charge.succeeded` | A charge succeeded |
+| `charge.refunded` | A charge was refunded |
+| `invoice.paid` | An invoice was paid |
+| `invoice.payment_failed` | An invoice payment failed |
+| `checkout.session.completed` | A Checkout session completed |
+| `customer.subscription.created` | A new subscription was created |
+| `customer.subscription.updated` | A subscription was updated |
+| `customer.subscription.deleted` | A subscription was cancelled |
+
+## Workflow context variables
+
+After the trigger fires, downstream nodes can reference Stripe event data using these variables:
+
+| Variable | Description |
+|---|---|
+| `{{stripeData.eventId}}` | Stripe event ID (e.g. `evt_1ABC...`) |
+| `{{stripeData.eventType}}` | Event type (e.g. `payment_intent.succeeded`) |
+| `{{stripeData.amount}}` | Amount in the smallest currency unit (e.g. cents) |
+| `{{stripeData.currency}}` | Currency code (e.g. `usd`) |
+| `{{stripeData.customerId}}` | Stripe customer ID |
+| `{{stripeData.status}}` | Status of the event object |
+| `{{stripeData.description}}` | Description field from the event object |
+| `{{stripeData.timestamp}}` | Event creation timestamp (Unix epoch) |
+| `{{stripeData.livemode}}` | `true` if the event is from live mode, `false` if test mode |
+| `{{json stripeData.raw}}` | Full raw event data object serialized as JSON |
+
+<Tip>
+  For fields not listed above, use `{{stripeData.raw.fieldName}}` to access any property from the raw Stripe event object directly.
+</Tip>
+
+## Local development
+
+To forward Stripe events to your local AutoPilot server during development, use the [Stripe CLI](https://stripe.com/docs/stripe-cli):
+
+```bash
+stripe listen --forward-to http://localhost:3000/api/webhooks/stripe?workflowId=<your-workflow-id>
+```
+
+The CLI provides a temporary webhook signing secret you can use as `STRIPE_WEBHOOK_SECRET` while developing locally.
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Post-payment onboarding" icon="circle-check">
+    When `payment_intent.succeeded` fires, send a welcome email, provision account access, or notify your team in Slack.
+  </Card>
+  <Card title="Subscription lifecycle" icon="rotate">
+    Trigger workflows when subscriptions are created, updated, or cancelled to update user records or send retention campaigns.
+  </Card>
+  <Card title="Refund notifications" icon="circle-dollar-sign">
+    Notify your support team or update your database automatically when a `charge.refunded` event is received.
+  </Card>
+  <Card title="Failed payment recovery" icon="triangle-alert">
+    React to `invoice.payment_failed` by sending dunning emails or flagging the account for review.
+  </Card>
+</CardGroup>

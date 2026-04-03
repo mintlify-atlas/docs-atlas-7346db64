@@ -1,0 +1,87 @@
+---
+title: "Discord"
+description: "Send messages to a Discord channel via webhook inside your AutoPilot workflows."
+---
+
+The Discord node posts a message to a Discord channel using an incoming webhook URL. Message content supports Handlebars template syntax, so you can embed dynamic data from earlier nodes. You can optionally override the webhook's display name and avatar. On success, the node stores the resulting message ID and delivery metadata in the workflow context for use by downstream nodes.
+
+## Prerequisites
+
+You need a **Discord Webhook** credential saved to your account before you can configure this node. The credential stores a Discord incoming webhook URL.
+
+<Steps>
+  <Step title="Create a webhook in Discord">
+    In your Discord server, go to **Server Settings → Integrations → Webhooks**, click **New Webhook**, choose a channel, and copy the webhook URL.
+  </Step>
+  <Step title="Save it in AutoPilot">
+    Navigate to **Dashboard → Credentials**, click **New Credential**, choose type **Discord Webhook**, and paste the webhook URL. See [Supported credential types](/credentials/supported-types) for details.
+  </Step>
+  <Step title="Select it in the node">
+    Open the Discord node settings and pick the credential from the **Webhook URL** picker.
+  </Step>
+</Steps>
+
+## Configuration
+
+<ParamField body="credentialId" type="string" required>
+  The saved Discord Webhook credential containing the webhook URL. Select from credentials of type **Discord Webhook**.
+</ParamField>
+
+<ParamField body="variableName" type="string" required>
+  The key under which the node's result is stored in the workflow context. Must start with a letter, underscore, or `$`, and contain only alphanumeric characters, underscores, or `$`. Access the result in later nodes as `{{variableName.success}}` and `{{variableName.messageId}}`.
+</ParamField>
+
+<ParamField body="content" type="string" required>
+  The message body sent to Discord. Maximum 2,000 characters — longer content is automatically truncated with a `[truncated]` suffix. Supports `{{variable}}` and `{{json variable}}` Handlebars syntax to insert data from previous nodes. Discord rate limit: 5 requests per 5 seconds per webhook.
+</ParamField>
+
+<ParamField body="username" type="string">
+  Optional. Overrides the webhook's default display name for this message. Supports `{{variable}}` Handlebars syntax.
+</ParamField>
+
+<ParamField body="avatarUrl" type="string">
+  Optional. Overrides the webhook's default avatar for this message. Provide a direct URL to an image. Supports `{{variable}}` Handlebars syntax.
+</ParamField>
+
+<Note>
+  The node posts to the Discord API with `wait=true`, which means it waits for Discord to confirm delivery and returns the message ID. If Discord returns a non-2xx response, the result object will have `success: false` and include an `error` description.
+</Note>
+
+## Output
+
+On success, the node merges the following object into the workflow context under the key you specified in **Variable Name**:
+
+```json
+{
+  "success": true,
+  "messageId": "1234567890123456789",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "provider": "discord"
+}
+```
+
+On failure, the `success` field is `false` and an `error` string is included instead of `messageId`.
+
+Reference the delivery status in downstream nodes with `{{variableName.success}}` and the message ID with `{{variableName.messageId}}`.
+
+<Warning>
+  Discord imposes a 2,000-character limit on webhook messages. Content exceeding this limit is silently truncated. If you need to send longer content, split it across multiple Discord nodes or summarize it first with an AI node.
+</Warning>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Deployment alerts" icon="bell">
+    Trigger a workflow on an HTTP webhook from your CI/CD system and send a Discord message to your team channel with build status and commit details.
+  </Card>
+  <Card title="AI-generated summaries" icon="sparkles">
+    Chain an OpenAI or Anthropic node before the Discord node to summarize a long document or report, then post the summary directly to Discord.
+  </Card>
+  <Card title="Form submission notifications" icon="envelope">
+    Connect a Google Form trigger to a Discord node to notify a channel whenever a new form response is submitted, including selected field values in the message.
+  </Card>
+</CardGroup>
+
+---
+
+See [Supported credential types](/credentials/supported-types) for instructions on creating and managing Discord Webhook credentials.

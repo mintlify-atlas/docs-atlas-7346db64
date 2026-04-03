@@ -1,0 +1,302 @@
+---
+title: "Executor API"
+description: "Technical reference for the node executor interface"
+---
+
+This page is intended for developers who want to understand how AutoPilot runs nodes internally, or who are extending AutoPilot with custom node types.
+
+## The `NodeExecutor` type
+
+Every node type is implemented as a single async function that conforms to the `NodeExecutor` type defined in `src/features/executions/components/types.ts`:
+
+```typescript
+import type { Realtime } from "@inngest/realtime";
+import type { GetStepTools, Inngest } from "inngest";
+
+export type workflowContext = Record<string, unknown>;
+
+export type StepTools = GetStepTools<Inngest.Any>;
+
+export interface NodeExecutorParams<TData = Record<string, unknown>> {
+  data: TData;
+  nodeId: string;
+  context: workflowContext;
+  step: StepTools;
+  publish: Realtime.PublishFn;
+  userId: string;
+}
+
+export type NodeExecutor<TData = Record<string, unknown>> = (
+  params: NodeExecutorParams<TData>,
+) => Promise<workflowContext>;
+```
+
+The generic parameter `TData` lets each executor declare the exact shape of its configuration data for type safety. The return type is always `Promise<workflowContext>` — a `Record<string, unknown>` representing the updated context after the node runs.
+
+## Parameters
+
+<ParamField body="data" type="TData">
+  The node's configuration object, deserialized from the `data` JSON column on the `Node` database record. Each executor defines its own `TData` type (e.g. `OpenAIData`, `DiscordData`). Fields are typically optional because they come from user input; executors validate them at runtime and throw `NonRetriableError` for missing required values.
+</ParamField>
+
+<ParamField body="nodeId" type="string">
+  The database ID of the node currently being executed. Used to publish real-time status updates (loading, success, error) to the frontend via Inngest Realtime channels.
+</ParamField>
+
+<ParamField body="context" type="Record<string, unknown>">
+  The accumulated workflow context at the point this node runs. Contains all keys written by every upstream node that has already executed. Read context values to use them in templates or pass them to external APIs.
+</ParamField>
+
+<ParamField body="step" type="StepTools">
+  The Inngest step tools object (`GetStepTools<Inngest.Any>`). Use `step.run(name, fn)` to wrap any async operation in a durable Inngest step, and `step.ai.wrap(name, fn, options)` for AI SDK calls that benefit from Inngest's AI observability.
+</ParamField>
+
+<ParamField body="publish" type="Realtime.PublishFn">
+  The Inngest Realtime publish function. Used to broadcast node status changes (`loading`, `success`, `error`) to the workflow canvas in real time. Each node type has its own named channel.
+</ParamField>
+
+<ParamField body="userId" type="string">
+  The ID of the user who owns the workflow. Used for credential ownership checks — every database credential lookup filters by `{ id: credentialId, userId }` to prevent cross-user credential access.
+</ParamField>
+
+## Return value
+
+Every executor must return a `Promise<workflowContext>`. The convention is to spread the incoming context and add the node's own output under a key specified by `data.variableName`:
+
+```typescript
+return {
+  ...context,
+  [data.variableName]: result,
+};
+```
+
+Trigger executors (which do not produce their own output) simply return the context unchanged:
+
+```typescript
+return context;
+```
+
+The returned object becomes the `context` value passed into the next node in topological order.
+
+## The executor registry
+
+The executor registry (`src/features/executions/components/lib/executor-registry.ts`) is a plain object that maps every `NodeType` enum value to its executor function:
+
+```typescript
+import { NodeType } from "@/generated/prisma";
+import type { NodeExecutor } from "../types";
+
+export const executorRegistry: Record<NodeType, NodeExecutor> = {
+  [NodeType.MANUAL_TRIGGER]: manualTriggerExecutor,
+  [NodeType.HTTP_REQUEST]: HttpRequestExecutor,
+  [NodeType.INITIAL]: manualTriggerExecutor,
+  [NodeType.GOOGLE_FORM_TRIGGER]: GoogleFormExecutor,
+  [NodeType.STRIPE_TRIGGER]: StripeExecutor,
+  [NodeType.GEMINI]: GeminiExecutor,
+  [NodeType.OPENAI]: OpenAIExecutor,
+  [NodeType.ANTHROPIC]: AnthropicExecutor,
+  [NodeType.DISCORD]: DiscordExecutor,
+  [NodeType.SLACK]: SlackExecutor,
+  [NodeType.TELEGRAM]: TelegramExecutor,
+  [NodeType.EMAIL_SMTP]: EmailExecutor,
+};
+
+export const getExecutor = (type: NodeType): NodeExecutor => {
+  const executor = executorRegistry[type];
+  if (!executor) {
+    throw new Error(`No executor found for node type: ${type}`);
+  }
+  return executor;
+};
+```
+
+The Inngest function calls `getExecutor(node.type)` for each node in the sorted list. Adding a new node type requires: registering it in the `NodeType` enum (Prisma schema), writing an executor function, and adding it to this registry.
+
+## How Inngest step functions work
+
+AutoPilot runs on [Inngest](https://www.inngest.com/), a durable execution platform. The `step` parameter is the core tool for making execution reliable.
+
+### `step.run(name, fn)`
+
+Wraps any async function in a durable step. If the Inngest function is interrupted and replayed, completed steps are not re-executed — Inngest replays their cached result. This means all side effects (HTTP calls, database reads, external API calls) should be wrapped in `step.run`:
+
+```typescript
+// From src/features/executions/components/discord/executor.ts
+const result = await step.run("discord-send-message", async () => {
+  const payload: Record<string, unknown> = { content: messageContent };
+
+  if (data.username) {
+    payload.username = Handlebars.compile(data.username)(context);
+  }
+
+  const response = await ky.post(webhookUrl, {
+    json: payload,
+    searchParams: { wait: "true" },
+  });
+
+  return {
+    success: response.ok,
+    messageId: (await response.json() as { id?: string }).id,
+    timestamp: new Date().toISOString(),
+    provider: "discord",
+  };
+});
+```
+
+### `step.ai.wrap(name, fn, options)`
+
+A specialized wrapper for Vercel AI SDK calls. Beyond durability, it enables AI observability in the Inngest dashboard (input/output recording, token counts):
+
+```typescript
+// From src/features/executions/components/openai/executor.ts
+const { text } = await step.ai.wrap("openai-generate-text", generateText, {
+  model: openai(data.model || "gpt-4.1-mini"),
+  system: systemPrompt,
+  prompt: userPrompt,
+  experimental_telemetry: {
+    isEnabled: true,
+    recordInputs: true,
+    recordOutputs: true,
+  },
+});
+```
+
+<Note>
+Step names must be unique within a single Inngest function invocation. Reusing a step name causes Inngest to return the cached result of the earlier step instead of re-executing.
+</Note>
+
+## Real-time status publishing
+
+Every executor publishes its status to the frontend using the `publish` function and a per-node-type channel. The pattern is consistent across all executors:
+
+```typescript
+const updateStatePublish = async (state: "loading" | "error" | "success") => {
+  return await publish(
+    OpenAIChannel().status({
+      nodeId,
+      status: state,
+    }),
+  );
+};
+
+await updateStatePublish("loading");   // before doing any work
+// ... do work ...
+await updateStatePublish("success");   // on completion
+// or
+await updateStatePublish("error");     // before throwing
+```
+
+This drives the visual status indicator on the workflow canvas node in real time.
+
+## Complete executor example
+
+The full `AnthropicExecutor` from `src/features/executions/components/anthropic/executor.ts` demonstrates every part of the executor contract:
+
+```typescript
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { generateText } from "ai";
+import Handlebars from "handlebars";
+import { NonRetriableError } from "inngest";
+import type { NodeExecutor } from "@/features/executions/components/types";
+import { AnthropicChannel } from "@/inngest/channels/anthropic";
+import prisma from "@/lib/db";
+
+Handlebars.registerHelper("json", (context: unknown) => {
+  return new Handlebars.SafeString(JSON.stringify(context, null, 2));
+});
+
+type AnthropicData = {
+  credentialId?: string;
+  variableName?: string;
+  model?: string;
+  systemPrompt?: string;
+  userPrompt?: string;
+};
+
+export const AnthropicExecutor: NodeExecutor<AnthropicData> = async ({
+  data,
+  nodeId,
+  context,
+  step,
+  publish,
+  userId,
+}) => {
+  const updateStatePublish = async (state: "loading" | "error" | "success") => {
+    return await publish(AnthropicChannel().status({ nodeId, status: state }));
+  };
+
+  await updateStatePublish("loading");
+
+  // Validate required fields — NonRetriableError prevents Inngest retries
+  if (!data.variableName) {
+    await updateStatePublish("error");
+    throw new NonRetriableError("Variable name is required");
+  }
+  if (!data.userPrompt) {
+    await updateStatePublish("error");
+    throw new NonRetriableError("User prompt is required");
+  }
+  if (!data.credentialId) {
+    await updateStatePublish("error");
+    throw new NonRetriableError("Anthropic API key is required.");
+  }
+
+  // Fetch credential in a durable step (ownership-checked)
+  const credential = await step.run("fetch-anthropic-credential", async () => {
+    const cred = await prisma.credentials.findUnique({
+      where: { id: data.credentialId, userId },
+    });
+    if (!cred) throw new NonRetriableError("API key not found or access denied.");
+    return cred;
+  });
+
+  // Compile Handlebars templates against current context
+  const systemPrompt = data.systemPrompt
+    ? Handlebars.compile(data.systemPrompt)(context)
+    : "You are a helpful assistant.";
+  const userPrompt = Handlebars.compile(data.userPrompt)(context);
+
+  const anthropic = createAnthropic({ apiKey: credential.value });
+
+  try {
+    const { text } = await step.ai.wrap("anthropic-generate-text", generateText, {
+      model: anthropic(data.model || "claude-sonnet-4-6"),
+      system: systemPrompt,
+      prompt: userPrompt,
+      experimental_telemetry: { isEnabled: true, recordInputs: true, recordOutputs: true },
+    });
+
+    await updateStatePublish("success");
+
+    // Return updated context with this node's output
+    return {
+      ...context,
+      [data.variableName]: { aiResponse: text },
+    };
+  } catch (error) {
+    await updateStatePublish("error");
+    throw new NonRetriableError(`Failed to generate text: ${error}`);
+  }
+};
+```
+
+## Adding a custom executor
+
+<Steps>
+  <Step title="Add the node type to the Prisma schema">
+    Add a new value to the `NodeType` enum in `prisma/schema.prisma` and run `npx prisma migrate dev` to apply it.
+  </Step>
+  <Step title="Define the data type and executor function">
+    Create a new executor file following the pattern above. Implement `NodeExecutor<YourData>`, wrap all side effects in `step.run`, publish status updates, and return the updated context.
+  </Step>
+  <Step title="Register the executor">
+    Import your executor in `src/features/executions/components/lib/executor-registry.ts` and add a `[NodeType.YOUR_TYPE]: yourExecutor` entry to `executorRegistry`.
+  </Step>
+  <Step title="Add a realtime channel">
+    Create a channel file in `src/inngest/channels/` and register it in the `channels` array inside `executeWorkflow` in `src/inngest/functions.ts`.
+  </Step>
+</Steps>
+
+<Warning>
+Do not perform side effects (API calls, database writes) outside of `step.run`. Inngest replays the function body when recovering from interruptions — any code outside a step will execute again on replay, which can cause duplicate messages, double charges, or other unintended consequences.
+</Warning>

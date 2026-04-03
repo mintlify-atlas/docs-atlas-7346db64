@@ -1,0 +1,72 @@
+---
+title: "Connections"
+description: "How nodes pass data to each other"
+---
+
+A connection is a directed edge between two nodes. It tells AutoPilot which node's output feeds into which node's input, and it carries the execution context — the data accumulated so far — from one step to the next.
+
+Connections are stored per-workflow. Deleting a workflow removes all its connections.
+
+## Connection properties
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `id` | `String` | auto | Unique identifier (CUID). |
+| `fromNodeId` | `String` | — | The node that sends data (the upstream node). |
+| `toNodeId` | `String` | — | The node that receives data (the downstream node). |
+| `fromOutput` | `String` | `"main"` | The named output port on the source node. |
+| `toInput` | `String` | `"main"` | The named input port on the destination node. |
+| `workflowId` | `String` | — | The workflow this connection belongs to. |
+
+In most workflows, both `fromOutput` and `toInput` remain at their default value of `"main"`. Named ports are available for future node types that expose multiple outputs.
+
+## How connections carry data
+
+When AutoPilot executes a workflow, it maintains a single **context object** — a `Record<string, unknown>` — that accumulates output from every node. Each connection does not move a separate payload; instead it represents a dependency relationship. The downstream node receives the full context object as it existed after all upstream nodes completed.
+
+```
+INITIAL ──► ANTHROPIC ──► DISCORD
+           (adds AI response to context)
+                          (reads AI response from context, posts to Discord)
+```
+
+## Unique constraint
+
+AutoPilot enforces that no two connections can share the same `(fromNodeId, toNodeId, fromOutput, toInput)` combination within a workflow. Drawing the same edge twice is silently rejected — you cannot create duplicate connections between the same pair of nodes on the same ports.
+
+## Multiple inputs
+
+A node can receive connections from more than one upstream node. When multiple nodes connect to the same input, AutoPilot ensures all upstream nodes complete before running the downstream node. The downstream node receives the merged context from all paths.
+
+<Note>
+  AutoPilot uses a topological sort to determine execution order. Cyclic connections — where node A connects to node B and node B connects back to node A — are detected at execution time and cause the run to fail immediately.
+</Note>
+
+## Drawing connections on the canvas
+
+<Steps>
+  <Step title="Hover over the source node">
+    Move your cursor over the node you want to send data from. A circular output handle appears on the right edge of the node.
+  </Step>
+  <Step title="Drag from the output handle">
+    Click and hold the output handle, then drag toward the destination node. A preview edge follows your cursor.
+  </Step>
+  <Step title="Drop onto the input handle">
+    Release the mouse over the input handle on the left edge of the destination node. AutoPilot saves the connection immediately.
+  </Step>
+  <Step title="Verify the edge">
+    The canvas renders the connection as a solid line from source to destination. You can click the edge to inspect or delete it.
+  </Step>
+</Steps>
+
+<Tip>
+  If a connection does not appear after you release the mouse, you may have missed the input handle. Try zooming in on the canvas for a more precise target.
+</Tip>
+
+## Removing a connection
+
+Click an existing connection edge on the canvas to select it, then press **Delete** or **Backspace**. The connection is removed from the workflow immediately. The nodes on either end are not affected — only the edge between them is deleted.
+
+<Warning>
+  Removing a connection between two nodes means the downstream node no longer depends on the upstream node. If the downstream node relies on data the upstream node adds to the context, it will no longer receive that data at execution time.
+</Warning>

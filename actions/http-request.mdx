@@ -1,0 +1,151 @@
+---
+title: "HTTP Request Action"
+description: "Make outbound HTTP calls from your workflow"
+---
+
+The HTTP Request action node makes an outbound HTTP call at a specific point during workflow execution. You can use it to fetch data from an external API, post data to a webhook, or chain multiple API calls together within a single workflow.
+
+<Tip>
+  The URL, request body, and any dynamic values support Handlebars templating. Use `{{variableName.field}}` to embed data from previous nodes directly into the endpoint URL or request body, and `{{json variableName}}` to serialize an object as JSON.
+</Tip>
+
+---
+
+## HTTP Request action vs. HTTP Request trigger
+
+AutoPilot has two distinct HTTP Request node types. They serve different purposes:
+
+| | HTTP Request **trigger** | HTTP Request **action** |
+|---|---|---|
+| **When it runs** | Starts the workflow when an inbound request arrives | Runs during workflow execution, after upstream nodes |
+| **Direction** | Inbound — receives a request from an external source | Outbound — sends a request to an external URL |
+| **Typical use** | Start a workflow from a webhook, cURL call, or external service | Call a third-party API or post data to a service mid-workflow |
+
+---
+
+## Configuration fields
+
+<ParamField path="variableName" type="string" required>
+  The name used to store the HTTP response in the workflow context. Must start with a letter, underscore, or dollar sign and contain only alphanumeric characters, underscores, or dollar signs — for example, `apiResult` or `webhookResponse`.
+
+  The full response is stored under this name and accessible as:
+
+  - `{{variableName.httpResponse.status}}` — HTTP status code
+  - `{{variableName.httpResponse.statusText}}` — Status text (e.g. `"OK"`)
+  - `{{variableName.httpResponse.data}}` — Parsed response body (JSON object or raw string)
+</ParamField>
+
+<ParamField path="method" type="string" required>
+  The HTTP method to use. One of: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`.
+
+  The request body field is only available for `POST`, `PUT`, and `PATCH` requests. `GET` and `DELETE` requests do not send a request body.
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  The full URL to send the request to (e.g. `https://api.example.com/users/{{userId}}`). Supports Handlebars templating — variable references are resolved from the current workflow context before the request is sent.
+
+  Variable names are case-sensitive. If a variable reference resolves to an empty string, the node will fail with a descriptive error listing the available context keys.
+</ParamField>
+
+<ParamField path="body" type="string">
+  The request body for `POST`, `PUT`, and `PATCH` requests. Must be valid JSON. Supports Handlebars templating — use `{{variableName.field}}` to embed values or `{{json variableName}}` to serialize an object.
+
+  The `Content-Type` header is automatically set to `application/json` when a body is present.
+
+  Example:
+
+  ```json
+  {
+    "name": "{{formResponse.responses.name}}",
+    "email": "{{formResponse.responses.email}}",
+    "summary": "{{aiSummary.aiResponse}}"
+  }
+  ```
+</ParamField>
+
+---
+
+## Response handling
+
+After the request completes, the response is stored in the workflow context under your chosen variable name. If the response `Content-Type` is `application/json`, the body is parsed into a JSON object. For all other content types, the raw response text is stored.
+
+**Output structure:**
+
+```json
+{
+  "variableName": {
+    "httpResponse": {
+      "status": 200,
+      "statusText": "OK",
+      "data": { ... }
+    }
+  }
+}
+```
+
+Access fields from the response in downstream nodes:
+
+```
+{{variableName.httpResponse.data.id}}
+{{variableName.httpResponse.status}}
+```
+
+---
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Call an external API" icon="arrow-up-right-from-square">
+    Fetch a user record, look up inventory, or retrieve pricing data from a third-party API mid-workflow.
+  </Card>
+  <Card title="Post to a webhook" icon="webhook">
+    Send processed data to another service — a CRM, ticketing system, or internal API — after a trigger fires.
+  </Card>
+  <Card title="Fetch data for AI processing" icon="brain">
+    Retrieve a document or dataset with an HTTP GET, then pass the response body into an AI node for summarization or classification.
+  </Card>
+  <Card title="Chain API calls" icon="link">
+    Use the response from one HTTP Request node as input to the next — for example, create a record and then update it with the returned ID.
+  </Card>
+</CardGroup>
+
+---
+
+## Configuring an HTTP Request action node
+
+<Steps>
+  <Step title="Add the node to your canvas">
+    Drag an **HTTP Request** node from the node panel onto the canvas. Make sure you are placing an action node, not the trigger node.
+  </Step>
+  <Step title="Connect it to the workflow">
+    Draw a connection from an upstream node (a trigger or another action) into the HTTP Request node's input handle.
+  </Step>
+  <Step title="Open node settings">
+    Click the node to open its configuration dialog.
+  </Step>
+  <Step title="Set the variable name">
+    Enter a variable name to store the response. Downstream nodes will reference the response as `{{yourVariableName.httpResponse.data}}`.
+  </Step>
+  <Step title="Select the HTTP method">
+    Choose `GET`, `POST`, `PUT`, `PATCH`, or `DELETE` from the dropdown.
+  </Step>
+  <Step title="Enter the endpoint URL">
+    Type or paste the full URL. Use `{{variableName.field}}` to make any part of the URL dynamic — for example `https://api.example.com/orders/{{stripeEvent.data.id}}`.
+  </Step>
+  <Step title="Add a request body (POST, PUT, PATCH only)">
+    Enter valid JSON in the body field. Embed context data using Handlebars syntax. The `Content-Type: application/json` header is set automatically.
+  </Step>
+  <Step title="Save and run">
+    Click **Save**, then execute the workflow. The response will appear in the execution log under your variable name.
+  </Step>
+</Steps>
+
+---
+
+## Headers
+
+For `POST`, `PUT`, and `PATCH` requests, AutoPilot automatically sets the `Content-Type: application/json` header when a body is present. `GET` and `DELETE` requests do not send a body or this header. If you need to send custom authentication headers such as `Authorization` or `X-Api-Key`, encode them as query parameters in the endpoint URL, depending on the API you are calling.
+
+<Warning>
+  The body must be valid JSON. If the body contains Handlebars expressions that resolve to values with special characters, wrap them in quotes within the JSON structure and verify the output is well-formed JSON before running the workflow.
+</Warning>

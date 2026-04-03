@@ -1,0 +1,73 @@
+---
+title: "Workflows"
+description: "Understand how AutoPilot workflows are structured"
+---
+
+A workflow is a named, self-contained automation. It holds a collection of [nodes](/concepts/nodes) — individual steps — and the [connections](/concepts/connections) that link them together. When you execute a workflow, AutoPilot runs each node in dependency order and passes data between them automatically.
+
+Every workflow belongs to your account. Other users cannot see or execute your workflows.
+
+## Workflow lifecycle
+
+<Steps>
+  <Step title="Create">
+    Click **New Workflow** in the Workflows dashboard. AutoPilot creates the workflow with a randomly generated name and adds an `INITIAL` node to the canvas as your starting point.
+  </Step>
+  <Step title="Build on the canvas">
+    Drag nodes from the palette onto the canvas and connect their output handles to input handles. Configure each node in the side panel that opens when you select it.
+  </Step>
+  <Step title="Save">
+    Click **Save** to persist your node layout and connection graph. AutoPilot stores nodes and connections in a single transactional write so the canvas is always consistent.
+  </Step>
+  <Step title="Execute">
+    Click **Execute** to trigger a run. AutoPilot dispatches the workflow to Inngest, which runs each node in topological order in the background.
+  </Step>
+  <Step title="View results">
+    While a run is in progress, node results stream in real time — each node on the canvas updates its status indicator as it completes. Open the **Executions** section from the sidebar to navigate to the executions view.
+  </Step>
+</Steps>
+
+## Workflow management
+
+You manage all your workflows from the **Workflows** dashboard.
+
+| Action | How |
+|---|---|
+| **Create** | Click **New Workflow** in the dashboard header. |
+| **Rename** | Click the workflow name in the canvas editor to edit it inline. |
+| **Open** | Click any workflow card in the dashboard list. |
+| **Delete** | Click the remove icon on a workflow card. This permanently deletes all nodes, connections, and associated data. |
+| **Search** | Use the search bar to filter workflows by name. |
+
+<Warning>
+  Deleting a workflow is irreversible. All nodes, connections, and stored configuration are removed immediately.
+</Warning>
+
+## Workflow properties
+
+| Property | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique identifier (CUID), generated automatically. |
+| `name` | `String` | Display name, editable at any time. New workflows receive a randomly generated three-word slug (e.g., `clever-blue-falcon`). |
+| `userId` | `String` | The account that owns this workflow. Access is always scoped to the owner. |
+| `nodes` | `Node[]` | The ordered list of nodes on this workflow's canvas. |
+| `connections` | `Connection[]` | The edges that link node outputs to node inputs. |
+| `createdAt` | `DateTime` | Timestamp when the workflow was first created. |
+| `updatedAt` | `DateTime` | Timestamp of the last save. Updated automatically on every canvas save. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Nodes" icon="circle-dot" href="/concepts/nodes">
+    Learn about the individual steps that make up a workflow.
+  </Card>
+  <Card title="Connections" icon="arrow-right-arrow-left" href="/concepts/connections">
+    Understand how nodes pass data to each other.
+  </Card>
+  <Card title="Executions" icon="play" href="/concepts/executions">
+    See how AutoPilot runs your workflow behind the scenes.
+  </Card>
+  <Card title="Triggers" icon="bolt" href="/triggers/manual">
+    Choose what event starts your workflow.
+  </Card>
+</CardGroup>

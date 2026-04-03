@@ -1,0 +1,61 @@
+---
+title: "Plans & Billing"
+description: "Understand AutoPilot's subscription plans and billing"
+---
+
+AutoPilot offers two plans: a free tier for getting started and a **Pro** subscription for users who need access to advanced features.
+
+## Free tier
+
+When you create an account you are on the free tier by default. The free tier lets you:
+
+- Save credentials (API keys, webhook URLs, bot tokens) to your account
+- View the workflow canvas and editor
+- Explore the platform
+
+Creating new workflows requires an active Pro subscription. If you try to create a workflow on the free tier, AutoPilot will prompt you to upgrade.
+
+## Pro plan
+
+The Pro plan unlocks full workflow creation and execution:
+
+- **Create workflows** — Build new automation workflows on the visual canvas
+- **Execute workflows** — Run workflows that use AI model nodes and notification nodes
+- **All node types** — Use the complete set of triggers (Manual, HTTP Request, Google Form, Stripe) and action nodes without restriction
+
+<Note>
+  Billing is handled securely by [Polar](https://polar.sh). AutoPilot never stores your payment details — all payment processing happens on Polar's infrastructure.
+</Note>
+
+## How to upgrade
+
+<Steps>
+  <Step title="Open the upgrade prompt">
+    You can start the upgrade flow in two ways:
+
+    - When you try to use a Pro-only feature (such as saving a credential), AutoPilot shows an **Upgrade to Pro** dialog automatically.
+    - Alternatively, go to your **Account Settings** and click **Upgrade**.
+  </Step>
+
+  <Step title="Complete checkout via Polar">
+    Click **Upgrade** in the dialog. You are redirected to a Polar-hosted checkout page. Enter your payment details and confirm the subscription.
+
+    After a successful payment, Polar notifies AutoPilot and your account is upgraded immediately. You are redirected back to the app.
+  </Step>
+
+  <Step title="Access Pro features">
+    Once your subscription is active, all credential types and node executions are unlocked. Any previously blocked actions will now work without the upgrade prompt.
+  </Step>
+</Steps>
+
+## Managing your subscription
+
+To view, change, or cancel your subscription:
+
+1. Go to **Account Settings**.
+2. Click **Manage Subscription**. You are redirected to the Polar customer portal.
+3. In the portal you can update your payment method, download invoices, and cancel your subscription at any time.
+
+<Warning>
+  Cancelling your subscription downgrades your account to the free tier at the end of the current billing period. Workflow definitions and canvas data are preserved, but credential-dependent executions will stop working until you resubscribe.
+</Warning>
